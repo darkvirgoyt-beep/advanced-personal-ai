@@ -50,7 +50,7 @@ export default function GitPage() {
 
   useEffect(() => {
     if (loading) return;
-    fetch("/api/github/status")
+    fetch("/api/nova/github/status")
       .then(response => response.ok ? response.json() : null)
       .then(status => { if (status) setGithubConnection(status); })
       .catch(() => setGithubConnection(null));
@@ -61,7 +61,7 @@ export default function GitPage() {
     if (params.get("github_connected") === "true") {
       toast.success("GitHub connected to this Nova AI workspace");
       window.history.replaceState({}, "", "/git");
-      fetch("/api/github/status")
+      fetch("/api/nova/github/status")
         .then(response => response.ok ? response.json() : null)
         .then(status => { if (status) setGithubConnection(status); })
         .catch(() => undefined);
@@ -168,7 +168,7 @@ export default function GitPage() {
                   size="sm"
                   className="bg-white text-black hover:bg-gray-100"
                   onClick={async () => {
-                    const response = await fetch("/api/github/disconnect", { method: "POST" });
+                    const response = await fetch("/api/nova/github/disconnect", { method: "POST" });
                     if (!response.ok) return toast.error("Could not disconnect GitHub");
                     setGithubConnection({ connected: false, login: "" });
                     toast.success("GitHub disconnected from this workspace");
@@ -181,7 +181,7 @@ export default function GitPage() {
                   variant="secondary"
                   size="sm"
                   className="bg-white text-black hover:bg-gray-100"
-                  onClick={() => window.location.assign("/api/github/authorize")}
+                  onClick={() => window.location.assign("/api/nova/github/authorize")}
                 >
                   <Github className="w-4 h-4 mr-1" /> Authorize GitHub
                 </Button>

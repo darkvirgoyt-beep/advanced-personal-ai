@@ -85,3 +85,5 @@
 - [x] Add executable two-workspace tests for GitHub connection status and disconnect isolation
 - [x] Verify a successful anonymous GitHub callback displays the linked account in the Git workspace
 - [x] Add executable interface coverage that maps callback-linked GitHub status to the connected-account display
+- [x] Move GitHub OAuth authorization and callback endpoints away from the conflicting deployment route
+- [ ] User: update the GitHub OAuth App redirect URI to the non-conflicting callback route

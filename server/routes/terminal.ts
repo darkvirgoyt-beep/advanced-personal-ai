@@ -21,7 +21,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 const GOOGLE_STATE_COOKIE = "nova_google_oauth_state";
 const WORKSPACE_COOKIE = "nova_workspace";
 const GOOGLE_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/auth/google/callback";
-const GITHUB_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/github/callback";
+const GITHUB_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/nova/github/callback";
 
 function readCookie(req: Request, name: string): string | undefined {
   return parseCookie(req.headers.cookie ?? "")[name];
@@ -267,7 +267,7 @@ export function registerCustomRoutes(app: Express) {
   });
 
   // GitHub OAuth - start an authorization request owned by the current workspace.
-  app.get("/api/github/authorize", async (req, res) => {
+  app.get("/api/nova/github/authorize", async (req, res) => {
     const clientId = process.env.GITHUB_CLIENT_ID;
     const clientSecret = process.env.GITHUB_CLIENT_SECRET;
     if (!clientId || !clientSecret) {
@@ -293,7 +293,7 @@ export function registerCustomRoutes(app: Express) {
   });
 
   // GitHub OAuth - validate the state, exchange the real code, and link only its originating workspace.
-  app.get("/api/github/callback", async (req, res) => {
+  app.get("/api/nova/github/callback", async (req, res) => {
     const code = typeof req.query.code === "string" ? req.query.code : undefined;
     const state = typeof req.query.state === "string" ? req.query.state : undefined;
     if (!code || !state) return res.redirect("/git?error=github_auth_failed");
@@ -332,7 +332,7 @@ export function registerCustomRoutes(app: Express) {
   });
 
   // GitHub OAuth - status and disconnect actions are scoped to the current workspace.
-  app.get("/api/github/status", async (req, res) => {
+  app.get("/api/nova/github/status", async (req, res) => {
     try {
       const user = await resolveWorkspaceUser(req, res);
       const connection = await db.getGitHubConnection(user.id);
@@ -342,7 +342,7 @@ export function registerCustomRoutes(app: Express) {
     }
   });
 
-  app.post("/api/github/disconnect", async (req, res) => {
+  app.post("/api/nova/github/disconnect", async (req, res) => {
     try {
       const user = await resolveWorkspaceUser(req, res);
       await db.clearGitHubConnection(user.id);
