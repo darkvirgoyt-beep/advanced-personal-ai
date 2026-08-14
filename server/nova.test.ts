@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
@@ -20,9 +20,11 @@ vi.mock("./db", () => ({
   getGitRepos: vi.fn(),
   saveGitRepo: vi.fn(),
   deleteGitRepo: vi.fn(),
+  getGitHubAccessToken: vi.fn(),
   getUserSettings: vi.fn(),
   updateUserSettings: vi.fn(),
   getCustomModels: vi.fn(),
+  getActiveCustomModels: vi.fn(),
   saveCustomModel: vi.fn(),
   updateCustomModelApiKey: vi.fn(),
   toggleCustomModel: vi.fn(),
@@ -34,6 +36,20 @@ vi.mock("./db", () => ({
 }));
 
 import * as db from "./db";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.unstubAllGlobals();
+  vi.mocked(db.getChatHistory).mockResolvedValue([]);
+  vi.mocked(db.getAllSecretValues).mockResolvedValue([]);
+  vi.mocked(db.getCustomTools).mockResolvedValue([]);
+  vi.mocked(db.getActiveCustomModels).mockResolvedValue([]);
+  vi.mocked(db.getGitHubAccessToken).mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -125,6 +141,63 @@ describe("chat operations", () => {
       caller.chat.send({ message: "hello", sessionId: "test" })
     ).rejects.toThrow();
   });
+
+  it("routes a selected Kie AI custom model without exposing its API key to the client", async () => {
+    vi.mocked(db.getUserSettings).mockResolvedValue({ model: "custom:7", systemPrompt: null });
+    vi.mocked(db.getActiveGroqKey).mockResolvedValue(undefined);
+    vi.mocked(db.getActiveCustomModels).mockResolvedValue([
+      { id: 7, name: "Kie AI · Gemini 2.5 Flash", provider: "kie-ai", endpoint: "https://api.kie.ai/gemini-2.5-flash/v1/chat/completions", apiKey: "kie-secret-key", modelName: "gemini-2.5-flash", isActive: "true" },
+    ]);
+    vi.mocked(db.saveChatMessage).mockResolvedValue(undefined);
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: "Kie response" } }] }) }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.chat.send({ message: "hello", sessionId: "kie-chat" })).resolves.toEqual({ message: "Kie response" });
+    expect(fetchMock).toHaveBeenCalledWith("https://api.kie.ai/gemini-2.5-flash/v1/chat/completions", expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: "Bearer kie-secret-key" }),
+    }));
+  });
+
+  it("adds selected repository context without exposing the GitHub OAuth token to the model prompt", async () => {
+    vi.mocked(db.getUserSettings).mockResolvedValue(null);
+    vi.mocked(db.getActiveGroqKey).mockResolvedValue("gsk_test1234567890abcdefghijklmnop");
+    vi.mocked(db.getGitHubAccessToken).mockResolvedValue("github-token-should-stay-server-side");
+    vi.mocked(db.saveChatMessage).mockResolvedValue(undefined);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/commits")) return { ok: true, status: 200, json: async () => [{ sha: "abc123456", commit: { message: "Fix rendering issue", author: { name: "Virgo" } } }] };
+      if (url.includes("/readme")) return { ok: true, status: 200, text: async () => "# Nova repository\nUseful documentation." };
+      if (url.includes("api.github.com/repos")) return { ok: true, status: 200, json: async () => ({ full_name: "darkvirgoyt-beep/nova", html_url: "https://github.com/darkvirgoyt-beep/nova", private: true, default_branch: "main", language: "TypeScript", description: "Nova source" }) };
+      if (url === "https://api.groq.com/openai/v1/chat/completions") return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: "Repository context received." } }] }) };
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.chat.send({ message: "Review this project", sessionId: "repo-context", selectedRepoFullNames: ["darkvirgoyt-beep/nova"] })).resolves.toEqual({ message: "Repository context received." });
+    const groqCall = fetchMock.mock.calls.find(([url]) => url === "https://api.groq.com/openai/v1/chat/completions");
+    const body = JSON.parse(String(groqCall?.[1]?.body));
+    expect(body.messages[0].content).toContain("[SELECTED GITHUB REPOSITORY CONTEXT]");
+    expect(body.messages[0].content).toContain("darkvirgoyt-beep/nova");
+    expect(body.messages[0].content).not.toContain("github-token-should-stay-server-side");
+  });
+});
+
+describe("GitHub repository discovery", () => {
+  it("returns a disconnected state without exposing a token when GitHub is not linked", async () => {
+    const caller = appRouter.createCaller(createCtx(anonymousWorkspaceUser));
+    await expect(caller.git.listGitHubRepos()).resolves.toEqual({ connected: false, repos: [] });
+    expect(db.getGitHubAccessToken).toHaveBeenCalledWith(42);
+  });
+
+  it("lists GitHub repositories available to the current workspace", async () => {
+    vi.mocked(db.getGitHubAccessToken).mockResolvedValue("server-only-token");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => [{ id: 7, name: "nova", full_name: "darkvirgoyt-beep/nova", description: "Nova source", private: true, default_branch: "main", html_url: "https://github.com/darkvirgoyt-beep/nova", language: "TypeScript", updated_at: "2026-08-14T00:00:00Z" }] })));
+    const caller = appRouter.createCaller(createCtx(testUser));
+    const result = await caller.git.listGitHubRepos();
+    expect(result).toMatchObject({ connected: true, repos: [{ fullName: "darkvirgoyt-beep/nova", private: true, defaultBranch: "main" }] });
+    expect(JSON.stringify(result)).not.toContain("server-only-token");
+  });
 });
 
 describe("vault operations", () => {
@@ -147,6 +220,15 @@ describe("vault operations", () => {
 });
 
 describe("custom models operations", () => {
+  it("publishes documented Kie AI chat-model presets without any user key", async () => {
+    const caller = appRouter.createCaller(createCtx(testUser));
+    const result = await caller.models.kieChatPresets();
+    expect(result.presets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ modelName: "gemini-2.5-flash", endpoint: "https://api.kie.ai/gemini-2.5-flash/v1/chat/completions" }),
+    ]));
+    expect(JSON.stringify(result)).not.toContain("key");
+  });
+
   it("lists custom models", async () => {
     vi.mocked(db.getCustomModels).mockResolvedValue([
       { id: 1, name: "GPT-4o", endpoint: "https://api.openai.com/v1/chat/completions", apiKey: "not-returned", isActive: "true" },
@@ -254,7 +336,7 @@ describe("GitHub OAuth configuration", () => {
         client_id: clientId!,
         client_secret: clientSecret!,
         code: "credential-validation-only",
-        redirect_uri: "https://novaai-r2evuk7k.manus.space/api/github/callback",
+        redirect_uri: "https://novaai-r2evuk7k.manus.space/api/download/project-zip?github=1",
       }),
     });
     const body = await response.json() as { error?: string };

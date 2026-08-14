@@ -57,6 +57,7 @@ export default function SettingsPage() {
   const vaultDeleteMutation = trpc.vault.delete.useMutation();
   const groqSaveMutation = trpc.groq.save.useMutation();
   const groqClearMutation = trpc.groq.clear.useMutation();
+  const customModelsQuery = trpc.models.list.useQuery(undefined, { enabled: !!user });
   const utils = trpc.useUtils();
 
   useEffect(() => {
@@ -185,8 +186,23 @@ export default function SettingsPage() {
                         {MODELS.map(m => (
                           <option key={m} value={m}>{m}</option>
                         ))}
+                        {customModelsQuery.data?.models.some(customModel => customModel.isActive === "true" && customModel.hasApiKey) && (
+                          <optgroup label="Configured providers">
+                            {customModelsQuery.data.models
+                              .filter(customModel => customModel.isActive === "true" && customModel.hasApiKey)
+                              .map(customModel => (
+                                <option key={customModel.id} value={`custom:${customModel.id}`}>
+                                  {customModel.name} · {customModel.modelName}
+                                </option>
+                              ))}
+                          </optgroup>
+                        )}
+                        {model.startsWith("custom:") && !customModelsQuery.data?.models.some(customModel => `custom:${customModel.id}` === model) && (
+                          <option value={model}>Unavailable saved custom model</option>
+                        )}
                       </select>
                     </div>
+                    <p className="text-xs text-muted-foreground">Groq models use your active gsk_ key. Kie AI and other configured providers appear here after they have an active model and API key.</p>
                     <div className="space-y-2">
                       <Label>System Prompt (optional)</Label>
                       <Textarea

@@ -74,7 +74,7 @@
 
 - [x] Diagnose the GitHub authorization 404 from the live application
 - [x] Repair the GitHub authorization entry route and callback configuration
-- [ ] Verify the live GitHub authorization redirect and document any required GitHub settings
+- [x] Verify the live GitHub authorization redirect and document any required GitHub settings
 - [x] Bind GitHub OAuth state and stored connection tokens to each Nova AI workspace
 - [x] Fix the OAuth callback to exchange GitHub’s authorization code after state validation
 - [x] Show connected GitHub account status and clear authorization guidance in the Git page
@@ -86,11 +86,25 @@
 - [x] Verify a successful anonymous GitHub callback displays the linked account in the Git workspace
 - [x] Add executable interface coverage that maps callback-linked GitHub status to the connected-account display
 - [x] Move GitHub OAuth authorization and callback endpoints away from the conflicting deployment route
-- [ ] User: update the GitHub OAuth App redirect URI to the non-conflicting callback route
+- [x] User: update the GitHub OAuth App redirect URI to the non-conflicting callback route
 - [x] Move GitHub OAuth to a deployment-routable two-segment API route
 - [x] Verify the two-segment authorization route reaches the app shell in production and require an established-endpoint fallback
 - [x] Route GitHub OAuth actions through the verified live project-download endpoint using explicit action parameters
-- [ ] Verify the established endpoint returns a GitHub authorization redirect on the live site
-- [ ] Live-test anonymous workspace GitHub status and disconnect branches on the established endpoint
-- [ ] User: update the GitHub OAuth App redirect URI to the established endpoint callback URL and confirm callback success
+- [x] Verify the established endpoint returns a GitHub authorization redirect on the live site
+- [x] Live-test anonymous workspace GitHub status and disconnect branches on the established endpoint
+- [x] User: update the GitHub OAuth App redirect URI to the established endpoint callback URL and confirm callback success
 - [x] Harden established-endpoint GitHub dispatch against production query parsing differences
+
+## Multi-Repository Chat Context
+
+- [x] List repositories accessible to the connected GitHub account within the current workspace
+- [x] Let users select and clear one or multiple repositories from chat
+- [x] Persist selected repositories per workspace and include their names in the AI chat context
+- [x] Preserve the existing Git page repository workflow alongside chat selection
+
+## Kie AI Provider
+
+- [x] Add secure Kie AI API-key add, replace, and remove controls without returning the key to the browser
+- [x] Load and display supported Kie AI models for selection
+- [x] Route chat requests through the selected Kie AI model when it is active
+- [x] Cover Kie AI configuration, model selection, and error behavior with tests

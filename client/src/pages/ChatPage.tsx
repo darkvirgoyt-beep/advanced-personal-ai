@@ -9,7 +9,7 @@ import {
 import {
   MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings,
   Send, Sparkles, Loader2, Trash2, Paperclip, X, Image, FileText, FileCode, LogIn,
-  Cpu, Wrench,
+  Cpu, Wrench, Github, FolderGit2, ChevronDown,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -17,6 +17,8 @@ import { trpc } from "@/lib/trpc";
 import { Streamdown } from "streamdown";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -26,6 +28,29 @@ type PendingFile = {
   size: number;
   url: string;
 };
+
+type GitHubRepository = {
+  id: number;
+  name: string;
+  fullName: string;
+  description: string | null;
+  private: boolean;
+  defaultBranch: string;
+  language: string | null;
+};
+
+function repositorySelectionKey(userId?: number): string {
+  return `nova-selected-github-repositories:${userId || "workspace"}`;
+}
+
+function getSavedRepositorySelection(userId?: number): string[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(repositorySelectionKey(userId)) || "[]");
+    return Array.isArray(saved) ? saved.filter((value): value is string => typeof value === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 const navItems = [
   { icon: MessageSquare, label: "Chat", path: "/chat" },
@@ -49,18 +74,31 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [selectedRepoFullNames, setSelectedRepoFullNames] = useState<string[]>([]);
 
   // All hooks before any early return
   const historyQuery = trpc.chat.history.useQuery({ sessionId }, { enabled: !loading });
   const clearMutation = trpc.chat.clear.useMutation();
   const sendMutation = trpc.chat.send.useMutation();
+  const githubReposQuery = trpc.git.listGitHubRepos.useQuery(undefined, { enabled: !loading, staleTime: 5 * 60 * 1000 });
 
   useEffect(() => { localStorage.setItem("nova-session", sessionId); }, [sessionId]);
+  useEffect(() => {
+    if (!loading) setSelectedRepoFullNames(getSavedRepositorySelection(user?.id));
+  }, [loading, user?.id]);
+  useEffect(() => {
+    if (!loading) localStorage.setItem(repositorySelectionKey(user?.id), JSON.stringify(selectedRepoFullNames));
+  }, [loading, selectedRepoFullNames, user?.id]);
   useEffect(() => {
     if (historyQuery.data?.messages) {
       setMessages(historyQuery.data.messages as Message[]);
     }
   }, [historyQuery.data]);
+  useEffect(() => {
+    if (!githubReposQuery.data) return;
+    const available = new Set(githubReposQuery.data.repos.map(repo => repo.fullName));
+    setSelectedRepoFullNames(current => current.filter(fullName => available.has(fullName)));
+  }, [githubReposQuery.data]);
 
   const scrollToBottom = useCallback(() => {
     const viewport = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement;
@@ -95,6 +133,15 @@ export default function ChatPage() {
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const toggleRepository = (fullName: string) => {
+    setSelectedRepoFullNames(current => current.includes(fullName)
+      ? current.filter(item => item !== fullName)
+      : [...current, fullName]);
+  };
+
+  const availableRepositories = (githubReposQuery.data?.repos || []) as GitHubRepository[];
+  const selectedRepositories = availableRepositories.filter(repo => selectedRepoFullNames.includes(repo.fullName));
+
   const handleSend = async () => {
     const trimmed = input.trim();
     if ((!trimmed && pendingFiles.length === 0) || isLoading) return;
@@ -105,7 +152,12 @@ export default function ChatPage() {
     setMessages(prev => [...prev, { role: "user", content: userMsg }]);
     try {
       const attachmentInfo = pendingFiles.map(f => ({ fileName: f.name, fileType: f.type, url: f.url }));
-      const result = await sendMutation.mutateAsync({ message: trimmed || `[See attached files]`, sessionId, attachmentInfo });
+      const result = await sendMutation.mutateAsync({
+        message: trimmed || `[See attached files]`,
+        sessionId,
+        attachmentInfo,
+        selectedRepoFullNames,
+      });
       setMessages(prev => [...prev, { role: "assistant", content: result.message }]);
     } catch (err: any) {
       toast.error(err.message || "Failed to get response");
@@ -221,6 +273,76 @@ export default function ChatPage() {
 
           {/* Input */}
           <div className="border-t border-border/50 p-4">
+            <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/50 px-3 py-2">
+              <div className="min-w-0 flex items-center gap-2">
+                <Github className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium">Repository working context</p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {githubReposQuery.isLoading
+                      ? "Loading connected repositories…"
+                      : selectedRepositories.length > 0
+                        ? selectedRepositories.map(repo => repo.fullName).join(", ")
+                        : githubReposQuery.data?.connected
+                          ? "No repository selected for this chat"
+                          : "Connect GitHub to give Nova repository context"}
+                  </p>
+                </div>
+              </div>
+              {githubReposQuery.data?.connected ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="shrink-0">
+                      <FolderGit2 className="mr-1.5 h-3.5 w-3.5" />
+                      {selectedRepositories.length ? `${selectedRepositories.length} selected` : "Select repos"}
+                      <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] p-2">
+                    <div className="flex items-center justify-between gap-3 px-2 py-1.5">
+                      <div>
+                        <p className="text-sm font-medium">Select repositories</p>
+                        <p className="text-xs text-muted-foreground">Choose one or multiple repositories for the next replies.</p>
+                      </div>
+                      {selectedRepoFullNames.length > 0 && (
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setSelectedRepoFullNames([])}>Clear</Button>
+                      )}
+                    </div>
+                    <ScrollArea className="mt-1 max-h-64">
+                      <div className="space-y-1 p-1">
+                        {availableRepositories.map(repo => {
+                          const checked = selectedRepoFullNames.includes(repo.fullName);
+                          return (
+                            <div key={repo.id} className="flex items-start gap-2 rounded-md px-2 py-2 hover:bg-accent/60">
+                              <Checkbox id={`github-repo-${repo.id}`} checked={checked} onCheckedChange={() => toggleRepository(repo.fullName)} />
+                              <label htmlFor={`github-repo-${repo.id}`} className="min-w-0 flex-1 cursor-pointer">
+                                <div className="flex items-center gap-2">
+                                  <span className="truncate text-sm font-medium">{repo.fullName}</span>
+                                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{repo.private ? "Private" : "Public"}</span>
+                                </div>
+                                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                  {repo.description || `${repo.defaultBranch}${repo.language ? ` · ${repo.language}` : ""}`}
+                                </p>
+                              </label>
+                            </div>
+                          );
+                        })}
+                        {availableRepositories.length === 0 && !githubReposQuery.isLoading && (
+                          <p className="px-2 py-4 text-center text-sm text-muted-foreground">No repositories are available from this GitHub connection.</p>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate("/git")}>
+                  <Github className="mr-1.5 h-3.5 w-3.5" /> Connect GitHub
+                </Button>
+              )}
+            </div>
+            {githubReposQuery.isError && (
+              <p className="max-w-3xl mx-auto mb-2 text-xs text-destructive">Repositories could not be loaded. Reconnect GitHub from the Git page and try again.</p>
+            )}
             <div className="max-w-3xl mx-auto flex gap-2">
               <input ref={fileInputRef} type="file" multiple onChange={handleFileUpload} className="hidden" accept="image/*,.pdf,.txt,.json,.js,.ts,.tsx,.jsx,.py,.cs,.cpp,.c,.h,.rs,.go,.java,.html,.css,.md" />
               <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="self-end h-[44px]">

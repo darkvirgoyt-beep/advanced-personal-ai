@@ -123,6 +123,21 @@ export async function getGitHubConnection(userId: number) {
   return result[0];
 }
 
+/**
+ * Returns an OAuth token only to server-side callers. Never expose this value
+ * through a tRPC response or client-visible route.
+ */
+export async function getGitHubAccessToken(userId: number): Promise<string | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select({ accessToken: githubOAuth.accessToken })
+    .from(githubOAuth)
+    .where(and(eq(githubOAuth.userId, userId), sql`${githubOAuth.accessToken} IS NOT NULL`))
+    .orderBy(desc(githubOAuth.id))
+    .limit(1);
+  return result[0]?.accessToken || undefined;
+}
+
 export async function clearGitHubConnection(userId: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");

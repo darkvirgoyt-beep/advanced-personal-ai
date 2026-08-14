@@ -22,12 +22,14 @@ export default function Home() {
   const [apiKey, setApiKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const groqCheck = trpc.groq.check.useQuery(undefined, { enabled: !loading });
+  const customModelsQuery = trpc.models.list.useQuery(undefined, { enabled: !loading });
   const saveKeyMutation = trpc.groq.save.useMutation();
   const utils = trpc.useUtils();
+  const hasConfiguredAlternative = customModelsQuery.data?.models.some(model => model.isActive === "true" && model.hasApiKey) || false;
 
   useEffect(() => {
-    if (!loading && groqCheck.data?.has) navigate("/chat");
-  }, [groqCheck.data?.has, loading, navigate]);
+    if (!loading && (groqCheck.data?.has || hasConfiguredAlternative)) navigate("/chat");
+  }, [groqCheck.data?.has, hasConfiguredAlternative, loading, navigate]);
 
   const handleSaveKey = async () => {
     const key = apiKey.trim();
@@ -48,7 +50,7 @@ export default function Home() {
     }
   };
 
-  if (loading || groqCheck.isLoading) {
+  if (loading || groqCheck.isLoading || customModelsQuery.isLoading) {
     return <div className="min-h-screen bg-background flex items-center justify-center"><Skeleton className="w-96 h-64 rounded-2xl" /></div>;
   }
 
@@ -78,6 +80,7 @@ export default function Home() {
             </Button>
             <p className="text-xs text-muted-foreground text-center">Your key is stored securely and never displayed in the UI.</p>
             <p className="text-xs text-muted-foreground text-center">Chats are saved privately on this browser and device.</p>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate("/models")}>Use Kie AI or another chat provider</Button>
           </div>
         </Card>
 
