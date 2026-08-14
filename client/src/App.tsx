@@ -15,6 +15,7 @@ import ModelsPage from "./pages/ModelsPage";
 import ToolsPage from "./pages/ToolsPage";
 import WorkspacePage from "./pages/WorkspacePage";
 import ApiDocsPage from "./pages/ApiDocsPage";
+import VirgoYTPage from "./pages/VirgoYTPage";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function Router() {
       <Route path={"/tools"} component={ToolsPage} />
       <Route path={"/workspace"} component={WorkspacePage} />
       <Route path={"/api-docs"} component={ApiDocsPage} />
+      <Route path={"/about-virgoyt"} component={VirgoYTPage} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

@@ -1,5 +1,30 @@
 # Nova AI - Project TODO
 
+## VirgoYT Author Documentation
+
+- [x] Add an editable VirgoYT author page with an honest creator statement and placeholders for approved official links
+- [x] Add a prominent Created by VirgoYT entry point from the NovaAI landing page
+- [x] Add route registration, regression coverage, and responsive verification for the author page
+- [ ] Publish the VirgoYT author documentation update
+
+## Private GitHub Release and Source Visibility
+
+- [ ] Verify the active NovaAI GitHub repository and current visibility before changing access
+- [ ] Set the approved NovaAI source repository to private and synchronize the latest release
+- [ ] Confirm the live application exposes no source-download affordance and explain the custom-domain requirement for replacing the managed URL
+
+## NovaAI Operating System Alignment
+
+- [x] Audit the supplied NovaAI operating-system specification against current implemented capabilities
+- [x] Define clear user-facing specialized agent profiles for developer, research, creator, gaming, and system workflows
+- [x] Improve model-router guidance, model monitoring foundations, and user-visible operating-mode documentation
+- [x] Add a transparent mode-aware model recommendation helper while preserving manual user selection
+- [x] Add a compact local session performance summary that records only model labels and client-observed request outcomes
+- [x] Add regression coverage for router recommendations and performance-summary privacy boundaries
+- [x] Document secure terminal limits, permission boundaries, and execution audit behavior
+- [x] Publish a transparent roadmap for knowledge-base, local-model, collaboration, plugin, and app-builder extensions
+- [ ] Validate and publish the NovaAI operating-system alignment update
+
 - [x] Database schema: groq_keys, chat_messages, secrets, chart_data, git_repos tables
 - [x] Backend: Groq API streaming chat endpoint
 - [x] Backend: API key validation (gsk_ prefix check)

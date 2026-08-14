@@ -25,6 +25,8 @@ import { buildChatModelOptions, DEFAULT_CHAT_MODEL, getConfiguredProviderGuidanc
 import { resolveComposerSecretAction } from "@/lib/privateSecretIntent";
 import { ConversationOrganizer } from "@/components/ConversationOrganizer";
 import { appendTranscript, canCaptureVoice, creatorPromptError, readAloudWithBrowser, voiceRecordingError } from "@/lib/creatorVoiceControls";
+import { NOVA_AGENT_PROFILES } from "@/lib/agentProfiles";
+import { EMPTY_LOCAL_MODEL_PERFORMANCE, recommendChatModel, recordLocalModelOutcome, type NovaOperatingMode } from "@/lib/modelRouter";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -110,8 +112,9 @@ export default function ChatPage() {
   const [selectedRepoFullNames, setSelectedRepoFullNames] = useState<string[]>([]);
   const [activeModel, setActiveModel] = useState(DEFAULT_CHAT_MODEL);
   const [activeProject, setActiveProject] = useState<ActiveProjectSelection | null>(() => getActiveProjectSelection());
-  const [aiMode, setAiMode] = useState("fast");
+  const [aiMode, setAiMode] = useState<AiModeValue>("fast");
   const [memoryEnabled, setMemoryEnabled] = useState(true);
+  const [localModelPerformance, setLocalModelPerformance] = useState(EMPTY_LOCAL_MODEL_PERFORMANCE);
   const [secretDialogOpen, setSecretDialogOpen] = useState(false);
   const [secretName, setSecretName] = useState("");
   const [secretValue, setSecretValue] = useState("");
@@ -144,6 +147,15 @@ export default function ChatPage() {
   const groqCheckQuery = trpc.groq.check.useQuery(undefined, { enabled: !loading });
   const saveSecretMutation = trpc.vault.add.useMutation();
   const utils = trpc.useUtils();
+  const chatModelOptions = buildChatModelOptions({
+    hasGroqKey: groqCheckQuery.data?.has || false,
+    models: (customModelsQuery.data?.models || []) as ConfiguredChatModel[],
+    activeModel,
+  });
+  const activeModelOption = chatModelOptions.find(option => option.value === activeModel);
+  const configuredModels = (customModelsQuery.data?.models || []) as ConfiguredChatModel[];
+  const configuredProviderGuidance = getConfiguredProviderGuidance(configuredModels);
+  const modelRecommendation = useMemo(() => recommendChatModel(aiMode as NovaOperatingMode, chatModelOptions), [aiMode, chatModelOptions]);
 
   useEffect(() => { localStorage.setItem("nova-session", sessionId); }, [sessionId]);
   useEffect(() => {
@@ -166,7 +178,7 @@ export default function ChatPage() {
     if (settingsQuery.data?.model) setActiveModel(settingsQuery.data.model);
   }, [settingsQuery.data?.model]);
   useEffect(() => {
-    if (settingsQuery.data?.aiMode) setAiMode(settingsQuery.data.aiMode);
+    if (settingsQuery.data?.aiMode && AI_MODES.some(mode => mode.value === settingsQuery.data.aiMode)) setAiMode(settingsQuery.data.aiMode as AiModeValue);
     if (typeof settingsQuery.data?.memoryEnabled === "boolean") setMemoryEnabled(settingsQuery.data.memoryEnabled);
   }, [settingsQuery.data?.aiMode, settingsQuery.data?.memoryEnabled]);
 
@@ -218,15 +230,6 @@ export default function ChatPage() {
 
   const availableRepositories = (githubReposQuery.data?.repos || []) as GitHubRepository[];
   const selectedRepositories = availableRepositories.filter(repo => selectedRepoFullNames.includes(repo.fullName));
-  const chatModelOptions = buildChatModelOptions({
-    hasGroqKey: groqCheckQuery.data?.has || false,
-    models: (customModelsQuery.data?.models || []) as ConfiguredChatModel[],
-    activeModel,
-  });
-  const activeModelOption = chatModelOptions.find(option => option.value === activeModel);
-  const configuredModels = (customModelsQuery.data?.models || []) as ConfiguredChatModel[];
-  const configuredProviderGuidance = getConfiguredProviderGuidance(configuredModels);
-
   const changeActiveModel = async (nextModel: string) => {
     const previousModel = activeModel;
     setActiveModel(nextModel);
@@ -273,6 +276,8 @@ export default function ChatPage() {
     const fileNames = pendingFiles.map(f => f.name).join(", ");
     const userMsg = pendingFiles.length > 0 ? `${trimmed ? trimmed + "\n\n" : ""}[Attached: ${fileNames}]` : trimmed;
     setMessages(prev => [...prev, { role: "user", content: userMsg }]);
+    const requestStartedAt = Date.now();
+    const modelLabel = activeModelOption?.label || activeModel;
     try {
       const attachmentInfo = pendingFiles.map(f => ({ fileName: f.name, fileType: f.type, url: f.url }));
       const result = await sendMutation.mutateAsync({
@@ -284,8 +289,10 @@ export default function ChatPage() {
         activeProjectPath: activeProject?.path,
       });
       setMessages(prev => [...prev, { role: "assistant", content: result.message }]);
+      setLocalModelPerformance(current => recordLocalModelOutcome(current, { modelLabel, durationMs: Date.now() - requestStartedAt, succeeded: true }));
       await utils.chat.conversations.invalidate();
     } catch (err: any) {
+      setLocalModelPerformance(current => recordLocalModelOutcome(current, { modelLabel, durationMs: Date.now() - requestStartedAt, succeeded: false }));
       toast.error(err.message || "Failed to get response");
       setMessages(prev => prev.slice(0, -1));
     }
@@ -526,7 +533,7 @@ export default function ChatPage() {
               {messages.length === 0 && (
                 <div className="text-center py-16">
                   <Sparkles className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground">Ask Nova anything. Your personal unrestricted assistant.</p>
+                  <p className="text-muted-foreground">Ask Nova anything. Your private development and productivity assistant.</p>
                 </div>
               )}
               {messages.map((msg, i) => (
@@ -585,6 +592,7 @@ export default function ChatPage() {
                 <Button variant="outline" size="sm" onClick={() => updateOperatingPreference({ memoryEnabled: !memoryEnabled })} disabled={updateSettingsMutation.isPending} className="h-7 text-xs">{memoryEnabled ? "Memory on" : "Memory paused"}</Button>
               </div>
               <div className="mt-2 grid grid-cols-4 gap-1 sm:grid-cols-8">{AI_MODES.map(mode => { const Icon = mode.icon; const active = aiMode === mode.value; return <button key={mode.value} onClick={() => updateOperatingPreference({ aiMode: mode.value })} disabled={updateSettingsMutation.isPending} className={`rounded-md border px-1 py-1.5 text-center transition ${active ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-100" : "border-border/60 text-muted-foreground hover:bg-accent"}`} title={mode.description}><Icon className="mx-auto h-3.5 w-3.5" /><span className="mt-1 block text-[10px]">{mode.label}</span></button>; })}</div>
+              <div className="mt-3 border-t border-cyan-500/15 pt-2"><p className="text-[10px] font-medium uppercase tracking-[.12em] text-muted-foreground">Specialist agents</p><div className="mt-1.5 grid grid-cols-2 gap-1 sm:grid-cols-5">{NOVA_AGENT_PROFILES.map(agent => <button key={agent.id} onClick={() => updateOperatingPreference({ aiMode: agent.mode })} disabled={updateSettingsMutation.isPending} title={agent.description} className={`rounded-md border px-2 py-1.5 text-left transition ${aiMode === agent.mode ? "border-violet-400/45 bg-violet-400/10 text-violet-100" : "border-border/60 text-muted-foreground hover:bg-accent"}`}><span className="block text-[11px] font-medium">{agent.label}</span><span className="mt-0.5 block truncate text-[10px] opacity-75">{agent.description}</span></button>)}</div></div>
             </div>
             {aiMode === "research" && <div className="max-w-3xl mx-auto mb-2 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs"><Search className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" /><p><span className="font-medium">Research mode.</span> Ask for sources, uncertainty, and a references section. Nova will format evidence clearly; only claim live retrieval when a connected research source is used.</p></div>}
             <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2">
@@ -645,6 +653,10 @@ export default function ChatPage() {
                     {activeModelOption.estimate && <span className="rounded bg-muted px-1 py-0.5">estimated</span>}
                   </div>
                 )}
+                <div className="mt-1 rounded-md border border-border/50 bg-background/40 px-2 py-1.5 text-[10px] text-muted-foreground sm:max-w-[25rem]">
+                  <span className="font-medium text-foreground">Router suggestion:</span> {modelRecommendation.option ? `${modelRecommendation.option.label.split(" · ")[0]} · ${modelRecommendation.reason}` : "Add an active provider to receive a recommendation."} {modelRecommendation.option && modelRecommendation.option.value !== activeModel && <button onClick={() => void changeActiveModel(modelRecommendation.option!.value)} className="ml-1 font-medium text-primary hover:underline">Use suggestion</button>}
+                </div>
+                <p className="mt-1 text-right text-[10px] text-muted-foreground sm:max-w-[25rem]">This session: {localModelPerformance.successes}/{localModelPerformance.attempts} completed{localModelPerformance.lastDurationMs !== null ? ` · last ${localModelPerformance.lastDurationMs} ms` : ""}. Local summary only; no message content is tracked.</p>
               </div>
             </div>
             <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/50 px-3 py-2">
