@@ -175,3 +175,88 @@
     }
   }
 }
+
+/* Nova AI: high-contrast cyberpunk visual language. */
+.dark {
+  --primary: oklch(0.7 0.28 350);
+  --primary-foreground: oklch(0.13 0.03 300);
+  --background: oklch(0.105 0.02 285);
+  --foreground: oklch(0.94 0.025 210);
+  --card: oklch(0.14 0.03 275);
+  --card-foreground: oklch(0.94 0.025 210);
+  --popover: oklch(0.14 0.03 275);
+  --popover-foreground: oklch(0.94 0.025 210);
+  --secondary: oklch(0.18 0.035 235);
+  --secondary-foreground: oklch(0.9 0.045 205);
+  --muted: oklch(0.16 0.035 245);
+  --muted-foreground: oklch(0.72 0.03 235);
+  --accent: oklch(0.21 0.06 230);
+  --accent-foreground: oklch(0.94 0.025 210);
+  --border: oklch(0.72 0.13 210 / 28%);
+  --input: oklch(0.72 0.13 210 / 30%);
+  --ring: oklch(0.8 0.15 205);
+}
+
+body {
+  font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-mono { font-family: "DM Mono", ui-monospace, monospace; }
+.nova-screen {
+  background: #04050d;
+  color: #eaf9ff;
+  isolation: isolate;
+}
+.nova-screen::before {
+  background-image: linear-gradient(rgba(94, 238, 255, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(94, 238, 255, .045) 1px, transparent 1px);
+  background-size: 44px 44px;
+  content: "";
+  inset: 0;
+  mask-image: linear-gradient(to bottom, black, transparent 75%);
+  pointer-events: none;
+  position: fixed;
+  z-index: -1;
+}
+.nova-ambient { border-radius: 999px; filter: blur(90px); height: 22rem; opacity: .14; pointer-events: none; position: absolute; width: 22rem; z-index: 0; }
+.nova-ambient-pink { background: #ff1988; left: -11rem; top: 6rem; }
+.nova-ambient-cyan { background: #15d8f5; right: -10rem; top: 10rem; }
+.nova-mark { align-items: center; background: linear-gradient(135deg, rgba(31, 230, 255, .22), rgba(255, 55, 150, .19)); border: 1px solid rgba(111, 242, 255, .5); box-shadow: 0 0 18px rgba(77, 228, 255, .28), inset 0 0 12px rgba(77, 228, 255, .12); color: #a2f6ff; display: grid; height: 2.2rem; justify-content: center; transform: skewX(-8deg); width: 2.2rem; }
+.nova-mark svg { transform: skewX(8deg); }
+.nova-status-dot { background: #66f7ff; border-radius: 50%; box-shadow: 0 0 10px #66f7ff, 0 0 18px rgba(102,247,255,.55); display: inline-block; height: .45rem; width: .45rem; }
+.nova-eyebrow, .nova-kicker { color: #b4f8ff; font-family: "DM Mono", monospace; font-size: .66rem; font-weight: 500; letter-spacing: .17em; }
+.nova-eyebrow { align-items: center; display: inline-flex; gap: .6rem; }
+.nova-gradient-text { background: linear-gradient(90deg, #ff86c9 0%, #ff49aa 34%, #80f5ff 70%, #f9e8ff 100%); background-clip: text; color: transparent; }
+.nova-headline-shimmer { background-size: 220% auto; text-shadow: 0 0 28px rgba(255, 81, 172, .28); animation: nova-shimmer 6s linear infinite; }
+.hud-panel { background: linear-gradient(145deg, rgba(15, 19, 40, .86), rgba(5, 7, 17, .78)); border: 1px solid rgba(113, 237, 255, .23); box-shadow: inset 0 0 32px rgba(22, 208, 252, .025), 0 0 35px rgba(15, 209, 255, .05); position: relative; }
+.hud-panel::before, .hud-panel::after { border-color: #7cf4ff; border-style: solid; content: ""; height: 12px; opacity: .75; position: absolute; width: 12px; }
+.hud-panel::before { border-width: 1px 0 0 1px; left: -1px; top: -1px; }
+.hud-panel::after { border-width: 0 1px 1px 0; bottom: -1px; right: -1px; }
+.nova-hero-console { box-shadow: 0 0 55px rgba(244, 45, 150, .1), 0 0 70px rgba(58, 225, 255, .07); }
+.nova-button { background: linear-gradient(105deg, #ff3d9c, #ff75bd); border: 1px solid rgba(255, 197, 226, .7); box-shadow: 0 0 18px rgba(255, 43, 151, .36), inset 0 1px rgba(255,255,255,.2); color: #170716; font-weight: 800; transition: transform 160ms cubic-bezier(.23,1,.32,1), box-shadow 160ms cubic-bezier(.23,1,.32,1); }
+.nova-button:hover { box-shadow: 0 0 28px rgba(255, 43, 151, .62), 0 0 52px rgba(126, 234, 255, .15); transform: translateY(-1px); }
+.nova-button:active { transform: scale(.97); }
+.nova-secondary-button { align-items: center; border: 1px solid rgba(118, 241, 255, .4); color: #d3fbff; display: inline-flex; font-weight: 700; justify-content: center; transition: background 160ms ease, border-color 160ms ease; }
+.nova-secondary-button:hover { background: rgba(91, 233, 255, .09); border-color: rgba(118, 241, 255, .75); }
+.nova-nav-link { transition: color 150ms ease, text-shadow 150ms ease; }
+.nova-nav-link:hover { color: #d2fbff; text-shadow: 0 0 12px rgba(113, 241, 255, .7); }
+.nova-feature-card { min-height: 16rem; transition: transform 200ms cubic-bezier(.23,1,.32,1), border-color 200ms ease, box-shadow 200ms ease; }
+.nova-feature-card:hover { border-color: rgba(255, 101, 184, .55); box-shadow: 0 0 34px rgba(255, 40, 150, .1); transform: translateY(-4px); }
+.nova-protocol-row { align-items: flex-start; background: rgba(10, 15, 31, .55); border: 1px solid rgba(109, 233, 255, .16); display: flex; gap: 1.25rem; padding: 1.2rem; }
+.nova-history { background: rgba(7, 9, 22, .94); border-right: 1px solid rgba(102, 239, 255, .2); display: flex; flex-direction: column; height: 100vh; width: 17.5rem; }
+.nova-history-mobile { border-right: 1px solid rgba(102, 239, 255, .3); box-shadow: 20px 0 50px rgba(0, 0, 0, .5); width: 100%; }
+.nova-new-chat { background: rgba(88, 227, 255, .08); border: 1px solid rgba(100, 241, 255, .35); color: #d3fbff; font-size: .75rem; font-weight: 700; }
+.nova-new-chat:hover { background: rgba(88, 227, 255, .15); color: #fff; }
+.nova-history-item { border: 1px solid transparent; color: #b9c6d1; display: block; margin-top: .25rem; overflow: hidden; padding: .75rem; text-align: left; transition: background 150ms ease, border-color 150ms ease; width: 100%; }
+.nova-history-item:hover { background: rgba(86, 224, 255, .06); border-color: rgba(86, 224, 255, .17); }
+.nova-history-item.is-active { background: linear-gradient(90deg, rgba(252, 48, 155, .12), rgba(69, 228, 255, .06)); border-color: rgba(253, 85, 170, .34); color: #fff; }
+.nova-chat-header { align-items: center; background: rgba(4, 5, 13, .7); border-bottom: 1px solid rgba(100, 241, 255, .16); display: flex; height: 4.25rem; justify-content: space-between; padding: 0 1.25rem; }
+.nova-chat-frame { background: rgba(8, 10, 25, .72); border: 1px solid rgba(100, 241, 255, .2); box-shadow: inset 0 0 60px rgba(45, 213, 255, .018), 0 0 34px rgba(0,0,0,.18); position: relative; }
+.nova-chat-frame::after { background: linear-gradient(90deg, #ff4aa9, #70f5ff); content: ""; height: 1px; left: 1rem; opacity: .7; position: absolute; right: 1rem; top: -1px; }
+.nova-chatbox [data-slot="scroll-area"] { background: radial-gradient(circle at 50% 0%, rgba(66, 216, 255, .04), transparent 36%); }
+.nova-chatbox textarea { background: rgba(3, 5, 14, .84); border-color: rgba(109, 234, 255, .24); color: #ecfcff; }
+.nova-chatbox textarea::placeholder { color: rgba(182, 206, 219, .42); }
+.nova-chatbox textarea:focus { border-color: rgba(104, 239, 255, .7); box-shadow: 0 0 0 3px rgba(96, 236, 255, .1), 0 0 16px rgba(96, 236, 255, .12); }
+.nova-chatbox .prose { --tw-prose-body: #cddce5; --tw-prose-headings: #fff; --tw-prose-links: #7df5ff; --tw-prose-bold: #fff; --tw-prose-code: #ffb3d8; }
+.nova-loader { align-items: center; background: rgba(14, 18, 37, .82); border: 1px solid rgba(104, 239, 255, .28); color: #c6faff; display: flex; font-family: "DM Mono", monospace; font-size: .75rem; gap: .75rem; letter-spacing: .1em; padding: 1rem 1.25rem; }
+@keyframes nova-shimmer { to { background-position: 220% center; } }
+@media (prefers-reduced-motion: reduce) { .nova-headline-shimmer { animation: none; } }

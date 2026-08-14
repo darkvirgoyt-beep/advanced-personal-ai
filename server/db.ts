@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { chatConversations, chatMessages, InsertUser, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -16,6 +16,12 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+async function requireDb() {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection is not available");
+  return db;
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {
@@ -89,4 +95,69 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function listConversationsForUser(userId: number) {
+  const db = await requireDb();
+  return db
+    .select({
+      id: chatConversations.id,
+      title: chatConversations.title,
+      createdAt: chatConversations.createdAt,
+      updatedAt: chatConversations.updatedAt,
+    })
+    .from(chatConversations)
+    .where(eq(chatConversations.userId, userId))
+    .orderBy(desc(chatConversations.updatedAt));
+}
+
+export async function getConversationForUser(userId: number, conversationId: string) {
+  const db = await requireDb();
+  const result = await db
+    .select()
+    .from(chatConversations)
+    .where(and(eq(chatConversations.userId, userId), eq(chatConversations.id, conversationId)))
+    .limit(1);
+  return result[0];
+}
+
+export async function createConversation(userId: number, id: string, title: string) {
+  const db = await requireDb();
+  await db.insert(chatConversations).values({ id, userId, title });
+  return getConversationForUser(userId, id);
+}
+
+export async function updateConversationActivity(userId: number, conversationId: string, title?: string) {
+  const db = await requireDb();
+  await db
+    .update(chatConversations)
+    .set({ ...(title ? { title } : {}), updatedAt: new Date() })
+    .where(and(eq(chatConversations.userId, userId), eq(chatConversations.id, conversationId)));
+}
+
+export async function listConversationMessages(userId: number, conversationId: string) {
+  const conversation = await getConversationForUser(userId, conversationId);
+  if (!conversation) return undefined;
+
+  const db = await requireDb();
+  const messages = await db
+    .select({
+      id: chatMessages.id,
+      role: chatMessages.role,
+      content: chatMessages.content,
+      createdAt: chatMessages.createdAt,
+    })
+    .from(chatMessages)
+    .where(eq(chatMessages.conversationId, conversationId))
+    .orderBy(asc(chatMessages.createdAt));
+
+  return { conversation, messages };
+}
+
+export async function createChatMessage(
+  conversationId: string,
+  id: string,
+  role: "user" | "assistant",
+  content: string
+) {
+  const db = await requireDb();
+  await db.insert(chatMessages).values({ id, conversationId, role, content });
+}
