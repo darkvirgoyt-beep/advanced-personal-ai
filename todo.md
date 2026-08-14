@@ -60,3 +60,12 @@
 - [x] Add an optional Google account sign-in control without blocking direct Groq access
 - [x] Define and implement migration behavior for anonymous device workspaces after Google sign-in
 - [x] User: add the production callback URL in Google Cloud Console before first Google sign-in
+
+## API and Workspace Management
+
+- [x] Add a secure Groq API-key removal control and return users to the key gate
+- [x] Support replacing the active Groq API key without exposing the old value
+- [x] Improve custom model API-key management for user-defined OpenAI-compatible APIs
+- [x] Add selectable Ubuntu and Kali-style terminal workspace profiles with clear host-environment limits
+- [x] Return a non-sensitive custom model key-status flag to the UI
+- [x] Use the key-status flag to expose custom API-key replace and remove controls correctly

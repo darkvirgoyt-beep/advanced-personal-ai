@@ -94,6 +94,10 @@ export const appRouter = router({
         await db.saveGroqKey(ctx.user!.id, input.apiKey);
         return { success: true };
       }),
+    clear: protectedProcedure.mutation(async ({ ctx }) => {
+      await db.clearGroqKeys(ctx.user!.id);
+      return { success: true };
+    }),
   }),
 
   // ── Chat ──
@@ -297,8 +301,13 @@ export const appRouter = router({
   models: router({
     list: protectedProcedure.query(async ({ ctx }) => {
       const modelsList = await db.getCustomModels(ctx.user!.id);
-      // Don't return API keys in list
-      return { models: modelsList.map(m => ({ ...m, apiKey: null })) };
+      // Never return stored API keys. The UI receives only a status flag.
+      return {
+        models: modelsList.map(({ apiKey, ...model }) => ({
+          ...model,
+          hasApiKey: !!apiKey,
+        })),
+      };
     }),
     add: protectedProcedure
       .input(z.object({
@@ -322,6 +331,18 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         await db.toggleCustomModel(ctx.user!.id, input.id);
+        return { success: true };
+      }),
+    updateKey: protectedProcedure
+      .input(z.object({ id: z.number(), apiKey: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        await db.updateCustomModelApiKey(ctx.user!.id, input.id, input.apiKey);
+        return { success: true };
+      }),
+    clearKey: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.updateCustomModelApiKey(ctx.user!.id, input.id, null);
         return { success: true };
       }),
   }),

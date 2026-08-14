@@ -109,6 +109,12 @@ export async function hasGroqKey(userId: number): Promise<boolean> {
   return !!key;
 }
 
+export async function clearGroqKeys(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.delete(groqKeys).where(eq(groqKeys.userId, userId));
+}
+
 // ── Chat Messages ──
 export async function saveChatMessage(userId: number, sessionId: string, role: string, content: string): Promise<void> {
   const db = await getDb();
@@ -256,6 +262,14 @@ export async function toggleCustomModel(userId: number, id: number): Promise<voi
     const newStatus = model[0].isActive === 'true' ? 'false' : 'true';
     await db.update(customModels).set({ isActive: newStatus as any }).where(eq(customModels.id, id));
   }
+}
+
+export async function updateCustomModelApiKey(userId: number, id: number, apiKey: string | null): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(customModels)
+    .set({ apiKey })
+    .where(and(eq(customModels.userId, userId), eq(customModels.id, id)));
 }
 
 // ── Custom Tools ──

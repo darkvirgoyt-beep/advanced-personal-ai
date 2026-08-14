@@ -5,6 +5,7 @@ import type { TrpcContext } from "./_core/context";
 vi.mock("./db", () => ({
   hasGroqKey: vi.fn(),
   saveGroqKey: vi.fn(),
+  clearGroqKeys: vi.fn(),
   getActiveGroqKey: vi.fn(),
   getChatHistory: vi.fn(),
   saveChatMessage: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("./db", () => ({
   updateUserSettings: vi.fn(),
   getCustomModels: vi.fn(),
   saveCustomModel: vi.fn(),
+  updateCustomModelApiKey: vi.fn(),
   toggleCustomModel: vi.fn(),
   deleteCustomModel: vi.fn(),
   getCustomTools: vi.fn(),
@@ -89,6 +91,13 @@ describe("groq key management", () => {
     const result = await caller.groq.save({ apiKey: "gsk_test1234567890abcdefghijklmnop" });
     expect(result).toEqual({ success: true });
   });
+
+  it("removes all saved Groq keys from the current workspace", async () => {
+    vi.mocked(db.clearGroqKeys).mockResolvedValue(undefined);
+    const caller = appRouter.createCaller(createCtx(anonymousWorkspaceUser));
+    await expect(caller.groq.clear()).resolves.toEqual({ success: true });
+    expect(db.clearGroqKeys).toHaveBeenCalledWith(42);
+  });
 });
 
 describe("chat operations", () => {
@@ -140,11 +149,13 @@ describe("vault operations", () => {
 describe("custom models operations", () => {
   it("lists custom models", async () => {
     vi.mocked(db.getCustomModels).mockResolvedValue([
-      { id: 1, name: "GPT-4o", endpoint: "https://api.openai.com/v1/chat/completions", isActive: "true" },
+      { id: 1, name: "GPT-4o", endpoint: "https://api.openai.com/v1/chat/completions", apiKey: "not-returned", isActive: "true" },
     ]);
     const caller = appRouter.createCaller(createCtx(testUser));
     const result = await caller.models.list();
     expect(result.models).toHaveLength(1);
+    expect(result.models[0]).toMatchObject({ hasApiKey: true });
+    expect(result.models[0]).not.toHaveProperty("apiKey");
   });
 
   it("adds a custom model", async () => {
@@ -156,6 +167,15 @@ describe("custom models operations", () => {
       modelName: "gpt-4o",
     });
     expect(result).toEqual({ success: true });
+  });
+  
+  it("replaces or removes a custom model API key without returning it", async () => {
+    vi.mocked(db.updateCustomModelApiKey).mockResolvedValue(undefined);
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.models.updateKey({ id: 7, apiKey: "custom-key" })).resolves.toEqual({ success: true });
+    await expect(caller.models.clearKey({ id: 7 })).resolves.toEqual({ success: true });
+    expect(db.updateCustomModelApiKey).toHaveBeenNthCalledWith(1, 1, 7, "custom-key");
+    expect(db.updateCustomModelApiKey).toHaveBeenNthCalledWith(2, 1, 7, null);
   });
 });
 

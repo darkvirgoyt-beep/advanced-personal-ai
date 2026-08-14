@@ -27,13 +27,23 @@ const navItems = [
 ];
 
 type TerminalLine = { type: "command" | "output" | "error"; content: string };
+type WorkspaceProfile = "ubuntu" | "kali" | "developer" | "custom";
+
+const profileDetails: Record<WorkspaceProfile, { label: string; banner: string }> = {
+  ubuntu: { label: "Ubuntu workspace", banner: "Ubuntu-style shell workspace selected. Commands run on Nova’s managed Ubuntu host." },
+  kali: { label: "Kali-style security workspace", banner: "Kali-style security workspace selected. This is a command-layout profile; Nova continues to run on its managed Ubuntu host." },
+  developer: { label: "Developer workspace", banner: "Developer workspace selected. Use it for Node, Python, Git, and project tooling on the managed Ubuntu host." },
+  custom: { label: "Custom workspace", banner: "Custom workspace selected. Your label is saved in this browser; commands still run on the managed Ubuntu host." },
+};
 
 export default function TerminalPage() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const [, navigate] = useLocation();
   const [command, setCommand] = useState("");
+  const [profile, setProfile] = useState<WorkspaceProfile>(() => (localStorage.getItem("nova-terminal-profile") as WorkspaceProfile) || "ubuntu");
+  const [customLabel, setCustomLabel] = useState(() => localStorage.getItem("nova-terminal-custom-label") || "My workspace");
   const [lines, setLines] = useState<TerminalLine[]>([
-    { type: "output", content: "Nova Virtual PC Terminal v1.0\nConnected to server environment.\nType 'help' for available commands." },
+    { type: "output", content: "Nova Virtual PC Terminal v1.0\nConnected to managed Ubuntu Linux.\nChoose a workspace profile above; Type 'help' for available commands." },
   ]);
   const [isExecuting, setIsExecuting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -44,6 +54,8 @@ export default function TerminalPage() {
     if (viewport) viewport.scrollTop = viewport.scrollHeight;
   }, []);
   useEffect(() => { scrollToBottom(); }, [lines, isExecuting, scrollToBottom]);
+  useEffect(() => { localStorage.setItem("nova-terminal-profile", profile); }, [profile]);
+  useEffect(() => { localStorage.setItem("nova-terminal-custom-label", customLabel); }, [customLabel]);
 
   if (loading || !isAuthenticated) return null;
 
@@ -56,7 +68,7 @@ export default function TerminalPage() {
     setIsExecuting(true);
 
     if (trimmed === "help") {
-      setLines(prev => [...prev, { type: "output", content: "Built-in commands:\n  help    - Show this help\n  clear   - Clear terminal\n  whoami  - Show current user\n  date    - Show current date\n  ls      - List working directory\n\nServer commands:\n  <cmd>   - Execute on server (e.g., ls -la, echo hello, node -v)" }]);
+      setLines(prev => [...prev, { type: "output", content: "Built-in commands:\n  help    - Show this help\n  clear   - Clear terminal\n  whoami  - Show current user\n  date    - Show current date\n  ls      - List working directory\n\nWorkspace profiles:\n  Ubuntu, Kali-style, Developer, and Custom labels are available above. All profiles use the same managed Ubuntu host.\n\nServer commands:\n  <cmd>   - Execute on server (e.g., ls -la, echo hello, node -v)" }]);
       setIsExecuting(false);
       return;
     }
@@ -69,7 +81,7 @@ export default function TerminalPage() {
       const res = await fetch("/api/terminal/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: trimmed }),
+        body: JSON.stringify({ command: trimmed, profile }),
       });
       const data = await res.json();
       if (data.error) {
@@ -83,6 +95,12 @@ export default function TerminalPage() {
       setLines(prev => [...prev, { type: "error", content: "Connection error" }]);
     }
     setIsExecuting(false);
+  };
+
+  const selectProfile = (nextProfile: WorkspaceProfile) => {
+    setProfile(nextProfile);
+    const title = nextProfile === "custom" ? customLabel || "Custom workspace" : profileDetails[nextProfile].label;
+    setLines(prev => [...prev, { type: "output", content: `[${title}] ${profileDetails[nextProfile].banner}` }]);
   };
 
   return (
@@ -126,13 +144,28 @@ export default function TerminalPage() {
         </Sidebar>
 
         <main className="flex-1 flex flex-col overflow-hidden">
-          <header className="h-14 border-b border-border/50 flex items-center px-4">
+          <header className="min-h-14 border-b border-border/50 flex flex-wrap items-center gap-3 px-4 py-2">
             <h2 className="font-semibold text-sm">Virtual PC Terminal</h2>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <label className="text-muted-foreground" htmlFor="workspace-profile">Workspace</label>
+              <select id="workspace-profile" value={profile} onChange={e => selectProfile(e.target.value as WorkspaceProfile)} className="rounded-md border border-input bg-background px-2 py-1.5 text-xs">
+                <option value="ubuntu">Ubuntu</option>
+                <option value="kali">Kali-style security</option>
+                <option value="developer">Developer</option>
+                <option value="custom">Custom</option>
+              </select>
+              {profile === "custom" && (
+                <Input value={customLabel} onChange={e => setCustomLabel(e.target.value)} placeholder="Workspace label" className="h-7 w-36 text-xs" maxLength={40} />
+              )}
+            </div>
           </header>
 
           <ScrollArea ref={scrollRef} className="flex-1 p-4">
             <div className="max-w-4xl mx-auto">
               <div className="bg-[#0d1117] rounded-xl p-4 font-mono text-sm min-h-[400px]">
+                <div className="mb-3 border-b border-white/10 pb-3 text-xs text-slate-400">
+                  {profile === "custom" ? customLabel || "Custom workspace" : profileDetails[profile].label} · Managed Ubuntu host
+                </div>
                 {lines.map((line, i) => (
                   <div key={i} className={`terminal-line whitespace-pre-wrap ${
                     line.type === "command" ? "text-green-400" :

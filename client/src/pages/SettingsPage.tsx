@@ -56,6 +56,7 @@ export default function SettingsPage() {
   const vaultAddMutation = trpc.vault.add.useMutation();
   const vaultDeleteMutation = trpc.vault.delete.useMutation();
   const groqSaveMutation = trpc.groq.save.useMutation();
+  const groqClearMutation = trpc.groq.clear.useMutation();
   const utils = trpc.useUtils();
 
   useEffect(() => {
@@ -103,6 +104,19 @@ export default function SettingsPage() {
       utils.groq.check.invalidate();
       toast.success("API key updated");
     } catch (err: any) { toast.error(err.message || "Failed"); }
+  };
+
+  const handleClearApiKey = async () => {
+    if (!window.confirm("Remove the saved Groq API key? Nova will return to the API-key gate, but your chats and workspace data will stay saved.")) return;
+    try {
+      await groqClearMutation.mutateAsync();
+      setNewApiKey("");
+      await utils.groq.check.invalidate();
+      toast.success("Groq API key removed. Add a new gsk_ key to chat again.");
+      navigate("/");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove API key");
+    }
   };
 
   return (
@@ -191,15 +205,23 @@ export default function SettingsPage() {
 
                 <TabsContent value="apikey" className="space-y-4">
                   <Card className="p-4 space-y-3">
-                    <Label>Update Groq API Key</Label>
+                    <Label>Replace Groq API Key</Label>
                     <Input
                       type="password"
                       placeholder="gsk_..."
                       value={newApiKey}
                       onChange={e => setNewApiKey(e.target.value)}
                     />
-                    <Button size="sm" onClick={handleSaveApiKey}>Update Key</Button>
-                    <p className="text-xs text-muted-foreground">Your key is stored securely and never displayed in the UI.</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={handleSaveApiKey} disabled={groqSaveMutation.isPending}>
+                        {groqSaveMutation.isPending ? "Saving…" : "Save New Key"}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleClearApiKey} disabled={groqClearMutation.isPending} className="text-destructive hover:text-destructive">
+                        <Trash2 className="w-3.5 h-3.5 mr-1" />
+                        {groqClearMutation.isPending ? "Removing…" : "Remove Saved Key"}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Saving a new key replaces the active one. Removing it keeps your saved chats and workspace data, but returns Nova to the Groq key gate.</p>
                   </Card>
                 </TabsContent>
 

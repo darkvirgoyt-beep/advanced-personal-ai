@@ -123,11 +123,15 @@ export function registerCustomRoutes(app: Express) {
   });
 
   app.post("/api/terminal/execute", (req, res) => {
-    const { command } = req.body;
+    const { command, profile } = req.body;
     if (!command || typeof command !== "string") {
       res.status(400).json({ error: "Invalid command" });
       return;
     }
+
+    const workspaceProfile = ["ubuntu", "kali", "developer", "custom"].includes(profile)
+      ? profile
+      : "ubuntu";
 
     // Safety: block dangerous commands
     const blocked = ["rm -rf /", "mkfs", "dd if=", "shutdown", "reboot", "halt"];
@@ -139,7 +143,7 @@ export function registerCustomRoutes(app: Express) {
 
     execAsync(command, { timeout: 30000, maxBuffer: 1024 * 1024 })
       .then(({ stdout, stderr }) => {
-        res.json({ stdout: stdout || "", stderr: stderr || "", exitCode: 0 });
+        res.json({ stdout: stdout || "", stderr: stderr || "", exitCode: 0, workspaceProfile, hostEnvironment: "Ubuntu Linux" });
       })
       .catch((err: any) => {
         res.json({
@@ -147,6 +151,8 @@ export function registerCustomRoutes(app: Express) {
           stderr: err.stderr || "",
           exitCode: err.code || 1,
           killed: err.killed || false,
+          workspaceProfile,
+          hostEnvironment: "Ubuntu Linux",
         });
       });
   });

@@ -37,8 +37,12 @@ export default function ModelsPage() {
   const [, navigate] = useLocation();
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
+  const [provider, setProvider] = useState("openai-compatible");
   const [endpoint, setEndpoint] = useState("");
+  const [modelName, setModelName] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [editingKeyId, setEditingKeyId] = useState<number | null>(null);
+  const [replacementKey, setReplacementKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   // All hooks before early return
@@ -46,6 +50,8 @@ export default function ModelsPage() {
   const saveMutation = trpc.models.add.useMutation();
   const toggleMutation = trpc.models.toggle.useMutation();
   const deleteMutation = trpc.models.delete.useMutation();
+  const updateKeyMutation = trpc.models.updateKey.useMutation();
+  const clearKeyMutation = trpc.models.clearKey.useMutation();
   const utils = trpc.useUtils();
 
   useEffect(() => {}, []);
@@ -61,13 +67,16 @@ export default function ModelsPage() {
     try {
       await saveMutation.mutateAsync({
         name: name.trim(),
+        provider: provider.trim() || "openai-compatible",
         endpoint: endpoint.trim(),
-        modelName: endpoint.trim(),
+        modelName: modelName.trim() || name.trim(),
         apiKey: apiKey.trim() || undefined,
       });
       await utils.models.list.invalidate();
       setName("");
+      setProvider("openai-compatible");
       setEndpoint("");
+      setModelName("");
       setApiKey("");
       setShowAdd(false);
       toast.success("Model added successfully");
@@ -90,6 +99,26 @@ export default function ModelsPage() {
       await utils.models.list.invalidate();
       toast.success("Model deleted");
     } catch { toast.error("Failed to delete"); }
+  };
+
+  const handleUpdateKey = async (id: number) => {
+    if (!replacementKey.trim()) { toast.error("Enter an API key first"); return; }
+    try {
+      await updateKeyMutation.mutateAsync({ id, apiKey: replacementKey.trim() });
+      setReplacementKey("");
+      setEditingKeyId(null);
+      await utils.models.list.invalidate();
+      toast.success("Custom model key updated");
+    } catch (err: any) { toast.error(err.message || "Failed to update key"); }
+  };
+
+  const handleClearKey = async (id: number) => {
+    if (!window.confirm("Remove this custom model API key? The endpoint configuration will remain.")) return;
+    try {
+      await clearKeyMutation.mutateAsync({ id });
+      await utils.models.list.invalidate();
+      toast.success("Custom model key removed");
+    } catch (err: any) { toast.error(err.message || "Failed to remove key"); }
   };
 
   return (
@@ -151,6 +180,16 @@ export default function ModelsPage() {
                     <Label>Model Name</Label>
                     <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g., GPT-4o, Claude 3.5, Gemini" />
                   </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label>Provider label</Label>
+                      <Input value={provider} onChange={e => setProvider(e.target.value)} placeholder="OpenAI, Ollama, Together" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Model ID</Label>
+                      <Input value={modelName} onChange={e => setModelName(e.target.value)} placeholder="e.g., gpt-4o-mini" />
+                    </div>
+                  </div>
                   <div className="space-y-1.5">
                     <Label>API Endpoint (OpenAI-compatible)</Label>
                     <Input value={endpoint} onChange={e => setEndpoint(e.target.value)} placeholder="https://api.openai.com/v1/chat/completions" />
@@ -204,11 +243,23 @@ export default function ModelsPage() {
                       <ExternalLink className="w-3 h-3" />
                       <span className="truncate max-w-[300px]">{model.endpoint}</span>
                     </div>
-                    {model.apiKey ? (
-                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                        <KeyRound className="w-3 h-3" /> Key configured
-                      </p>
-                    ) : null}
+                    <p className="text-xs text-muted-foreground mt-1">{model.provider || "openai-compatible"} · {model.modelName}</p>
+                    {model.hasApiKey ? (
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1"><KeyRound className="w-3 h-3" /> Key configured</p>
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setEditingKeyId(model.id); setReplacementKey(""); }}>Replace key</Button>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => handleClearKey(model.id)}>Remove key</Button>
+                      </div>
+                    ) : (
+                      <Button variant="outline" size="sm" className="mt-2 h-7 text-xs" onClick={() => { setEditingKeyId(model.id); setReplacementKey(""); }}>Add API key</Button>
+                    )}
+                    {editingKeyId === model.id && (
+                      <div className="flex gap-2 mt-2">
+                        <Input type="password" value={replacementKey} onChange={e => setReplacementKey(e.target.value)} placeholder="Paste replacement API key" className="h-8 text-xs" />
+                        <Button size="sm" className="h-8" onClick={() => handleUpdateKey(model.id)} disabled={updateKeyMutation.isPending}>Save</Button>
+                        <Button variant="ghost" size="sm" className="h-8" onClick={() => setEditingKeyId(null)}>Cancel</Button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <Switch
