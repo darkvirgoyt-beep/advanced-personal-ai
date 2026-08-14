@@ -6,13 +6,9 @@ import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton,
   SidebarMenuItem, SidebarProvider, SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings, LogOut,
-  Send, User, Sparkles, Loader2, Trash2, Paperclip, X, Image, FileText, FileCode,
+  MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings,
+  Send, Sparkles, Loader2, Trash2, Paperclip, X, Image, FileText, FileCode,
   Cpu, Wrench,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -43,7 +39,7 @@ const navItems = [
 ];
 
 export default function ChatPage() {
-  const { user, loading, isAuthenticated, logout } = useAuth();
+  const { loading } = useAuth();
   const [, navigate] = useLocation();
   const [sessionId] = useState(() => localStorage.getItem("nova-session") || nanoid(16));
   const [messages, setMessages] = useState<Message[]>([]);
@@ -55,7 +51,7 @@ export default function ChatPage() {
   const [uploading, setUploading] = useState(false);
 
   // All hooks before any early return
-  const historyQuery = trpc.chat.history.useQuery({ sessionId }, { enabled: !!user });
+  const historyQuery = trpc.chat.history.useQuery({ sessionId }, { enabled: !loading });
   const clearMutation = trpc.chat.clear.useMutation();
   const sendMutation = trpc.chat.send.useMutation();
 
@@ -72,7 +68,7 @@ export default function ChatPage() {
   }, []);
   useEffect(() => { scrollToBottom(); }, [messages, isLoading, scrollToBottom]);
 
-  if (loading || !isAuthenticated) return null;
+  if (loading) return null;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -151,19 +147,10 @@ export default function ChatPage() {
             </SidebarMenu>
           </SidebarContent>
           <div className="p-3 border-t border-border/50">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="w-full justify-start text-sm">
-                  <User className="w-4 h-4 mr-2" />
-                  {user?.name || "User"}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top">
-                <DropdownMenuItem onClick={logout} className="text-destructive">
-                  <LogOut className="w-4 h-4 mr-2" /> Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="rounded-md px-3 py-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-foreground"><Shield className="w-3.5 h-3.5 text-primary" /> Private workspace</div>
+              <p className="mt-1">Saved on this device</p>
+            </div>
           </div>
         </Sidebar>
 

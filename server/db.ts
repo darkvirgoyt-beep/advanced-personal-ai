@@ -43,6 +43,29 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+/**
+ * Resolves the database user for an opaque browser workspace token. The token
+ * is held only in an HTTP-only cookie, so all saved data remains scoped to
+ * the same browser without requiring an account sign-in.
+ */
+export async function getOrCreateAnonymousWorkspace(workspaceToken: string) {
+  const openId = `anon_${workspaceToken}`;
+  const existing = await getUserByOpenId(openId);
+  if (existing) return existing;
+
+  await upsertUser({
+    openId,
+    name: "Private workspace",
+    loginMethod: "anonymous",
+    role: "user",
+    lastSignedIn: new Date(),
+  });
+
+  const created = await getUserByOpenId(openId);
+  if (!created) throw new Error("Unable to initialize private workspace");
+  return created;
+}
+
 // ── Groq Keys ──
 export async function saveGroqKey(userId: number, apiKey: string): Promise<void> {
   const db = await getDb();

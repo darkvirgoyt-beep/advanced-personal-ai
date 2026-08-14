@@ -176,7 +176,7 @@ export const appRouter = router({
             const cm = customModelsList[0];
             response = await callCustomModel(cm.endpoint, cm.apiKey, cm.modelName, messages);
           } else {
-            throw new TRPCError({ code: "UNAUTHORIZED", message: "No API key configured. Add a Groq key or custom model." });
+            throw new TRPCError({ code: "BAD_REQUEST", message: "No API key configured. Add a Groq key or custom model." });
           }
         }
 

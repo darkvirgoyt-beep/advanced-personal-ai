@@ -55,12 +55,27 @@ const testUser: AuthenticatedUser = {
   lastSignedIn: new Date(),
 };
 
+const anonymousWorkspaceUser: AuthenticatedUser = {
+  ...testUser,
+  id: 42,
+  openId: "anon_browser_workspace",
+  name: "Private workspace",
+  loginMethod: "anonymous",
+};
+
 describe("groq key management", () => {
   it("returns has=false when no key exists", async () => {
     vi.mocked(db.hasGroqKey).mockResolvedValue(false);
     const caller = appRouter.createCaller(createCtx(testUser));
     const result = await caller.groq.check();
     expect(result).toEqual({ has: false });
+  });
+
+  it("keeps Groq-key state scoped to an anonymous browser workspace", async () => {
+    vi.mocked(db.hasGroqKey).mockResolvedValue(false);
+    const caller = appRouter.createCaller(createCtx(anonymousWorkspaceUser));
+    await expect(caller.groq.check()).resolves.toEqual({ has: false });
+    expect(db.hasGroqKey).toHaveBeenCalledWith(42);
   });
 
   it("rejects invalid API key format", async () => {

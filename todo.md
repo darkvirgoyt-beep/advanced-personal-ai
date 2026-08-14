@@ -47,3 +47,9 @@
 - [x] Generate and validate a complete Nova AI source-code ZIP
 - [x] Fix and verify the public direct-download URL for the source ZIP
 - [x] Point the in-app download button to the verified live project-zip endpoint
+
+## Anonymous Direct Access
+
+- [x] Remove the account sign-in requirement from the Nova AI entry flow
+- [x] Create an anonymous browser-specific workspace identity for persistent data
+- [x] Preserve Groq-key-gated chat history for the same browser/device without sign-in
