@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KeyRound, Loader2, MessageSquare, Shield, Sparkles, Terminal } from "lucide-react";
+import { KeyRound, Loader2, LogIn, MessageSquare, Shield, Sparkles, Terminal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -80,6 +80,13 @@ export default function Home() {
             <p className="text-xs text-muted-foreground text-center">Chats are saved privately on this browser and device.</p>
           </div>
         </Card>
+
+        <div className="mt-4 text-center">
+          <Button variant="ghost" size="sm" onClick={() => { window.location.href = "/api/auth/google/authorize"; }}>
+            <LogIn className="w-4 h-4 mr-2" /> Sign in with Google to sync this workspace
+          </Button>
+          <p className="mt-1 text-xs text-muted-foreground">Optional — you can continue without an account.</p>
+        </div>
 
         <div className="mt-6 grid grid-cols-3 gap-2">
           {features.map(feature => (

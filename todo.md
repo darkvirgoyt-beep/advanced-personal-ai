@@ -53,3 +53,10 @@
 - [x] Remove the account sign-in requirement from the Nova AI entry flow
 - [x] Create an anonymous browser-specific workspace identity for persistent data
 - [x] Preserve Groq-key-gated chat history for the same browser/device without sign-in
+
+## Optional Google Sign-In
+
+- [x] Configure Google OAuth credentials and specify the authorized callback URL
+- [x] Add an optional Google account sign-in control without blocking direct Groq access
+- [x] Define and implement migration behavior for anonymous device workspaces after Google sign-in
+- [ ] User: add the production callback URL in Google Cloud Console before first Google sign-in

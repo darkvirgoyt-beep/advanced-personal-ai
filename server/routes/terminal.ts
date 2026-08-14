@@ -1,19 +1,127 @@
 import { exec } from "child_process";
 import { promisify } from "util";
-import { Express } from "express";
+import { Express, Request } from "express";
 import { ZipArchive } from "archiver";
 import multer from "multer";
 import path from "path";
 import { nanoid } from "nanoid";
+import { randomBytes, timingSafeEqual } from "crypto";
+import { parse as parseCookie } from "cookie";
 import { storagePut } from "../storage";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { githubOAuth } from "../../drizzle/schema";
+import * as db from "../db";
+import { COOKIE_NAME, ONE_YEAR_MS } from "../../shared/const";
+import { getSessionCookieOptions } from "../_core/cookies";
+import { sdk } from "../_core/sdk";
 
 const execAsync = promisify(exec);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const GOOGLE_STATE_COOKIE = "nova_google_oauth_state";
+const WORKSPACE_COOKIE = "nova_workspace";
+const GOOGLE_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/auth/google/callback";
+
+function readCookie(req: Request, name: string): string | undefined {
+  return parseCookie(req.headers.cookie ?? "")[name];
+}
+
+function validWorkspaceToken(value: string | undefined): value is string {
+  return !!value && /^[a-zA-Z0-9_-]{16,64}$/.test(value);
+}
+
+function safeEquals(left: string | undefined, right: string | undefined): boolean {
+  if (!left || !right || left.length !== right.length) return false;
+  return timingSafeEqual(Buffer.from(left), Buffer.from(right));
+}
 
 export function registerCustomRoutes(app: Express) {
+  // Google OAuth remains optional. Users can always continue directly with a Groq key.
+  app.get("/api/auth/google/authorize", (req, res) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) return res.redirect("/?error=google_not_configured");
+
+    const state = randomBytes(24).toString("base64url");
+    res.cookie(GOOGLE_STATE_COOKIE, state, {
+      ...getSessionCookieOptions(req),
+      maxAge: 10 * 60 * 1000,
+    });
+
+    const authorizeUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authorizeUrl.searchParams.set("client_id", clientId);
+    authorizeUrl.searchParams.set("redirect_uri", GOOGLE_CALLBACK_URL);
+    authorizeUrl.searchParams.set("response_type", "code");
+    authorizeUrl.searchParams.set("scope", "openid email profile");
+    authorizeUrl.searchParams.set("state", state);
+    authorizeUrl.searchParams.set("prompt", "select_account");
+    res.redirect(authorizeUrl.toString());
+  });
+
+  app.get("/api/auth/google/callback", async (req, res) => {
+    const code = typeof req.query.code === "string" ? req.query.code : undefined;
+    const state = typeof req.query.state === "string" ? req.query.state : undefined;
+    const expectedState = readCookie(req, GOOGLE_STATE_COOKIE);
+    res.clearCookie(GOOGLE_STATE_COOKIE, getSessionCookieOptions(req));
+
+    if (!code || !safeEquals(state, expectedState)) {
+      return res.redirect("/?error=google_auth_failed");
+    }
+
+    try {
+      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: process.env.GOOGLE_CLIENT_ID || "",
+          client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
+          redirect_uri: GOOGLE_CALLBACK_URL,
+          grant_type: "authorization_code",
+        }),
+      });
+      const tokenData = await tokenResponse.json() as { access_token?: string };
+      if (!tokenResponse.ok || !tokenData.access_token) throw new Error("Google token exchange failed");
+
+      const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const profile = await profileResponse.json() as { sub?: string; email?: string; name?: string };
+      if (!profileResponse.ok || !profile.sub) throw new Error("Google profile lookup failed");
+
+      const openId = `google_${profile.sub}`;
+      const existingAccount = await db.getUserByOpenId(openId);
+      await db.upsertUser({
+        openId,
+        name: profile.name || profile.email || "Google user",
+        email: profile.email || null,
+        loginMethod: "google",
+        lastSignedIn: new Date(),
+      });
+      const googleUser = await db.getUserByOpenId(openId);
+      if (!googleUser) throw new Error("Google workspace creation failed");
+
+      // Only migrate on first Google sign-in to avoid silently merging separate workspaces.
+      const workspaceToken = readCookie(req, WORKSPACE_COOKIE);
+      if (!existingAccount && validWorkspaceToken(workspaceToken)) {
+        const anonymousUser = await db.getUserByOpenId(`anon_${workspaceToken}`);
+        if (anonymousUser) await db.migrateAnonymousWorkspace(anonymousUser.id, googleUser.id);
+      }
+
+      const sessionToken = await sdk.createSessionToken(openId, {
+        name: googleUser.name || "Google user",
+        expiresInMs: ONE_YEAR_MS,
+      });
+      res.cookie(COOKIE_NAME, sessionToken, {
+        ...getSessionCookieOptions(req),
+        maxAge: ONE_YEAR_MS,
+      });
+      res.redirect("/chat?google_connected=true");
+    } catch (error) {
+      console.error("[Google OAuth] Callback failed", error);
+      res.redirect("/?error=google_auth_failed");
+    }
+  });
+
   app.post("/api/terminal/execute", (req, res) => {
     const { command } = req.body;
     if (!command || typeof command !== "string") {

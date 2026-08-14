@@ -196,3 +196,26 @@ describe("settings operations", () => {
     expect(result).toEqual({ success: true });
   });
 });
+
+describe("Google OAuth configuration", () => {
+  it("accepts the configured client credentials at Google’s token endpoint", async () => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    expect(clientId).toBeTruthy();
+    expect(clientSecret).toBeTruthy();
+
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId!,
+        client_secret: clientSecret!,
+        code: "credential-validation-only",
+        grant_type: "authorization_code",
+        redirect_uri: "https://novaai-r2evuk7k.manus.space/api/auth/google/callback",
+      }),
+    });
+    const body = await response.json() as { error?: string };
+    expect(body.error).not.toBe("invalid_client");
+  }, 20_000);
+});

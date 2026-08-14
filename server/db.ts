@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser, users, groqKeys, chatMessages, secrets,
   chartData, gitRepos, settings,
-  customModels, customTools, chatAttachments
+  customModels, customTools, chatAttachments, githubOAuth
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -64,6 +64,25 @@ export async function getOrCreateAnonymousWorkspace(workspaceToken: string) {
   const created = await getUserByOpenId(openId);
   if (!created) throw new Error("Unable to initialize private workspace");
   return created;
+}
+
+export async function migrateAnonymousWorkspace(anonymousUserId: number, accountUserId: number): Promise<void> {
+  if (anonymousUserId === accountUserId) return;
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+
+  await db.transaction(async tx => {
+    await tx.update(groqKeys).set({ userId: accountUserId }).where(eq(groqKeys.userId, anonymousUserId));
+    await tx.update(chatMessages).set({ userId: accountUserId }).where(eq(chatMessages.userId, anonymousUserId));
+    await tx.update(secrets).set({ userId: accountUserId }).where(eq(secrets.userId, anonymousUserId));
+    await tx.update(chartData).set({ userId: accountUserId }).where(eq(chartData.userId, anonymousUserId));
+    await tx.update(gitRepos).set({ userId: accountUserId }).where(eq(gitRepos.userId, anonymousUserId));
+    await tx.update(settings).set({ userId: accountUserId }).where(eq(settings.userId, anonymousUserId));
+    await tx.update(customModels).set({ userId: accountUserId }).where(eq(customModels.userId, anonymousUserId));
+    await tx.update(customTools).set({ userId: accountUserId }).where(eq(customTools.userId, anonymousUserId));
+    await tx.update(chatAttachments).set({ userId: accountUserId }).where(eq(chatAttachments.userId, anonymousUserId));
+    await tx.update(githubOAuth).set({ userId: accountUserId }).where(eq(githubOAuth.userId, anonymousUserId));
+  });
 }
 
 // ── Groq Keys ──

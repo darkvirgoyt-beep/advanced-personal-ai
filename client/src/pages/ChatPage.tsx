@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings,
-  Send, Sparkles, Loader2, Trash2, Paperclip, X, Image, FileText, FileCode,
+  Send, Sparkles, Loader2, Trash2, Paperclip, X, Image, FileText, FileCode, LogIn,
   Cpu, Wrench,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -39,7 +39,7 @@ const navItems = [
 ];
 
 export default function ChatPage() {
-  const { loading } = useAuth();
+  const { user, loading } = useAuth();
   const [, navigate] = useLocation();
   const [sessionId] = useState(() => localStorage.getItem("nova-session") || nanoid(16));
   const [messages, setMessages] = useState<Message[]>([]);
@@ -148,8 +148,11 @@ export default function ChatPage() {
           </SidebarContent>
           <div className="p-3 border-t border-border/50">
             <div className="rounded-md px-3 py-2 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2 text-foreground"><Shield className="w-3.5 h-3.5 text-primary" /> Private workspace</div>
-              <p className="mt-1">Saved on this device</p>
+              {user?.loginMethod === "google" ? (
+                <><div className="flex items-center gap-2 text-foreground"><Shield className="w-3.5 h-3.5 text-primary" /> Google connected</div><p className="mt-1 truncate">{user.email || user.name}</p></>
+              ) : (
+                <><div className="flex items-center gap-2 text-foreground"><Shield className="w-3.5 h-3.5 text-primary" /> Private workspace</div><p className="mt-1">Saved on this device</p><button onClick={() => { window.location.href = "/api/auth/google/authorize"; }} className="mt-2 flex items-center gap-1 text-primary hover:underline"><LogIn className="w-3 h-3" /> Sync with Google</button></>
+              )}
             </div>
           </div>
         </Sidebar>
