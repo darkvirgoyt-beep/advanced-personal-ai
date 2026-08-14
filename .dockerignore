@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.manus
+.manus-logs
+.env
+.env.*
+!.env.example
+.project-config.json
+*.zip

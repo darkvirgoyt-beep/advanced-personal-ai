@@ -39,3 +39,9 @@
 
 - [x] Create GitHub repo "advanced-personal-ai" and push project files
 - [x] Save checkpoint and deliver with deployment URL
+
+## Portable Source ZIP
+
+- [x] Audit deployment configuration and required environment variables
+- [x] Add portable deployment instructions for GitHub-hosted source
+- [x] Generate and validate a complete Nova AI source-code ZIP
