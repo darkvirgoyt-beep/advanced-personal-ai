@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, mediumtext, longtext, uniqueIndex } from "drizzle-orm/mysql-core";
+import { boolean, int, mysqlEnum, mysqlTable, text, timestamp, varchar, mediumtext, longtext, uniqueIndex } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -75,6 +75,8 @@ export const settings = mysqlTable("settings", {
   userId: int("userId").notNull(),
   model: varchar("model", { length: 128 }).default("llama-3.3-70b-versatile").notNull(),
   systemPrompt: mediumtext("systemPrompt"),
+  aiMode: varchar("aiMode", { length: 32 }).default("fast").notNull(),
+  memoryEnabled: boolean("memoryEnabled").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

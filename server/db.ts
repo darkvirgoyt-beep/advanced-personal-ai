@@ -276,7 +276,7 @@ export async function getUserSettings(userId: number): Promise<any> {
   return result[0] || null;
 }
 
-export async function updateUserSettings(userId: number, model?: string, systemPrompt?: string): Promise<void> {
+export async function updateUserSettings(userId: number, model?: string, systemPrompt?: string, aiMode?: string, memoryEnabled?: boolean): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   const existing = await getUserSettings(userId);
@@ -285,10 +285,12 @@ export async function updateUserSettings(userId: number, model?: string, systemP
       .set({
         ...(model !== undefined ? { model } : {}),
         ...(systemPrompt !== undefined ? { systemPrompt } : {}),
+        ...(aiMode !== undefined ? { aiMode } : {}),
+        ...(memoryEnabled !== undefined ? { memoryEnabled } : {}),
       })
       .where(eq(settings.userId, userId));
   } else {
-    await db.insert(settings).values({ userId, model: model || 'llama-3.3-70b-versatile', systemPrompt: systemPrompt || null });
+    await db.insert(settings).values({ userId, model: model || 'llama-3.3-70b-versatile', systemPrompt: systemPrompt || null, aiMode: aiMode || 'fast', memoryEnabled: memoryEnabled ?? true });
   }
 }
 

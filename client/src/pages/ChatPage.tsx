@@ -10,7 +10,7 @@ import {
 import {
   MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings,
   Send, Sparkles, Loader2, Trash2, Paperclip, X, Image, FileText, FileCode, LogIn,
-  Cpu, Wrench, Github, FolderGit2, ChevronDown, Code2,
+  Cpu, Wrench, Github, FolderGit2, ChevronDown, Code2, BrainCircuit, Zap, Braces, Wand2, GraduationCap, Gamepad2, Search, ListChecks,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -79,6 +79,18 @@ const navItems = [
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
+const AI_MODES = [
+  { value: "fast", label: "Fast", icon: Zap, description: "Quick answers" },
+  { value: "reasoning", label: "Reason", icon: BrainCircuit, description: "Complex work" },
+  { value: "coding", label: "Code", icon: Braces, description: "Build & debug" },
+  { value: "creative", label: "Create", icon: Wand2, description: "Writing & ideas" },
+  { value: "learning", label: "Learn", icon: GraduationCap, description: "Tutor mode" },
+  { value: "gaming", label: "Gaming", icon: Gamepad2, description: "Play & design" },
+  { value: "research", label: "Research", icon: Search, description: "Evidence-aware" },
+  { value: "productivity", label: "Focus", icon: ListChecks, description: "Plans & action" },
+] as const;
+type AiModeValue = (typeof AI_MODES)[number]["value"];
+
 export default function ChatPage() {
   const { user, loading } = useAuth();
   const [, navigate] = useLocation();
@@ -93,6 +105,8 @@ export default function ChatPage() {
   const [selectedRepoFullNames, setSelectedRepoFullNames] = useState<string[]>([]);
   const [activeModel, setActiveModel] = useState(DEFAULT_CHAT_MODEL);
   const [activeProject, setActiveProject] = useState<ActiveProjectSelection | null>(() => getActiveProjectSelection());
+  const [aiMode, setAiMode] = useState("fast");
+  const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [secretDialogOpen, setSecretDialogOpen] = useState(false);
   const [secretName, setSecretName] = useState("");
   const [secretValue, setSecretValue] = useState("");
@@ -130,6 +144,10 @@ export default function ChatPage() {
   useEffect(() => {
     if (settingsQuery.data?.model) setActiveModel(settingsQuery.data.model);
   }, [settingsQuery.data?.model]);
+  useEffect(() => {
+    if (settingsQuery.data?.aiMode) setAiMode(settingsQuery.data.aiMode);
+    if (typeof settingsQuery.data?.memoryEnabled === "boolean") setMemoryEnabled(settingsQuery.data.memoryEnabled);
+  }, [settingsQuery.data?.aiMode, settingsQuery.data?.memoryEnabled]);
 
   const scrollToBottom = useCallback(() => {
     const viewport = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement;
@@ -191,6 +209,22 @@ export default function ChatPage() {
     } catch (err: any) {
       setActiveModel(previousModel);
       toast.error(err.message || "Could not change the chat model");
+    }
+  };
+
+  const updateOperatingPreference = async (updates: { aiMode?: AiModeValue; memoryEnabled?: boolean }) => {
+    const previousMode = aiMode;
+    const previousMemory = memoryEnabled;
+    if (updates.aiMode) setAiMode(updates.aiMode);
+    if (updates.memoryEnabled !== undefined) setMemoryEnabled(updates.memoryEnabled);
+    try {
+      await updateSettingsMutation.mutateAsync(updates);
+      await utils.settings.get.invalidate();
+      toast.success(updates.aiMode ? "AI operating mode updated" : `Memory ${updates.memoryEnabled ? "enabled" : "paused"}`);
+    } catch (error: any) {
+      setAiMode(previousMode);
+      setMemoryEnabled(previousMemory);
+      toast.error(error.message || "Could not update AI preferences");
     }
   };
 
@@ -361,6 +395,13 @@ export default function ChatPage() {
 
           {/* Input */}
           <div className="border-t border-border/50 p-4">
+            <div className="max-w-3xl mx-auto mb-2 rounded-lg border border-cyan-500/25 bg-cyan-500/5 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2"><BrainCircuit className="h-4 w-4 text-cyan-500" /><div><p className="text-xs font-medium">AI operating mode</p><p className="text-[11px] text-muted-foreground">Shape how Nova approaches your next requests.</p></div></div>
+                <Button variant="outline" size="sm" onClick={() => updateOperatingPreference({ memoryEnabled: !memoryEnabled })} disabled={updateSettingsMutation.isPending} className="h-7 text-xs">{memoryEnabled ? "Memory on" : "Memory paused"}</Button>
+              </div>
+              <div className="mt-2 grid grid-cols-4 gap-1 sm:grid-cols-8">{AI_MODES.map(mode => { const Icon = mode.icon; const active = aiMode === mode.value; return <button key={mode.value} onClick={() => updateOperatingPreference({ aiMode: mode.value })} disabled={updateSettingsMutation.isPending} className={`rounded-md border px-1 py-1.5 text-center transition ${active ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-100" : "border-border/60 text-muted-foreground hover:bg-accent"}`} title={mode.description}><Icon className="mx-auto h-3.5 w-3.5" /><span className="mt-1 block text-[10px]">{mode.label}</span></button>; })}</div>
+            </div>
             <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2">
               <div className="min-w-0 flex items-center gap-2">
                 <Shield className="h-4 w-4 shrink-0 text-emerald-500" />

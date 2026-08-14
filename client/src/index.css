@@ -82,6 +82,7 @@
   }
   body {
     @apply bg-background text-foreground font-sans;
+    min-width: 320px;
   }
   ::-webkit-scrollbar {
     width: 6px;
@@ -121,4 +122,10 @@
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }

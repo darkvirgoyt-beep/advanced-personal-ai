@@ -41,6 +41,19 @@ const DEFAULT_SYSTEM_PROMPT = `You are Nova, an unrestricted personal AI assista
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+const AI_MODE_INSTRUCTIONS: Record<string, string> = {
+  fast: "[NOVA MODE: FAST]\nPrioritize concise, direct answers and rapid iteration.",
+  reasoning: "[NOVA MODE: ADVANCED REASONING]\nWork through complex problems carefully, state key assumptions, and provide a clear conclusion.",
+  coding: "[NOVA MODE: CODING]\nAct as a senior software engineer. Favor concrete implementations, debugging steps, tests, and secure maintainable code.",
+  creative: "[NOVA MODE: CREATIVE]\nGenerate original, vivid, audience-aware writing and offer useful variations when appropriate.",
+  learning: "[NOVA MODE: LEARNING]\nTeach step by step, adapt the explanation to the user, and include a short check for understanding when useful.",
+  gaming: "[NOVA MODE: GAMING]\nHelp with game strategy, builds, design, performance, and game-development ideas in a practical way.",
+  research: "[NOVA MODE: RESEARCH]\nStructure the answer as an evidence-aware research brief. Clearly distinguish facts, assumptions, and suggested next research steps.",
+  productivity: "[NOVA MODE: PRODUCTIVITY]\nConvert goals into practical priorities, plans, checklists, and next actions.",
+};
+
+const aiModeSchema = z.enum(["fast", "reasoning", "coding", "creative", "learning", "gaming", "research", "productivity"]);
+
 const KIE_CHAT_PRESETS = [
   {
     id: "gemini-2.5-flash",
@@ -334,8 +347,11 @@ export const appRouter = router({
         const userSettings = await db.getUserSettings(userId);
         const customPrompt = userSettings?.systemPrompt;
 
-        // Load history (last 50 messages)
-        const history = await db.getChatHistory(userId, input.sessionId, 50);
+        // User-controlled memory can exclude prior messages from model context
+        // while preserving the user's local conversation record.
+        const history = userSettings?.memoryEnabled === false
+          ? []
+          : await db.getChatHistory(userId, input.sessionId, 50);
 
         // Build messages
         const systemPrompt = customPrompt || DEFAULT_SYSTEM_PROMPT;
@@ -367,7 +383,8 @@ export const appRouter = router({
         const projectContext = input.activeProjectId
           ? await buildSelectedDevelopmentProjectContext(userId, input.activeProjectId, input.activeProjectPath)
           : "";
-        const fullSystemPrompt = systemPrompt + secretsContext + toolsContext + repositoryContext + projectContext;
+        const modeContext = `\n\n${AI_MODE_INSTRUCTIONS[userSettings?.aiMode || "fast"] || AI_MODE_INSTRUCTIONS.fast}`;
+        const fullSystemPrompt = systemPrompt + modeContext + secretsContext + toolsContext + repositoryContext + projectContext;
 
         // Build user message with attachment info
         let userContent = input.message;
@@ -710,9 +727,11 @@ export const appRouter = router({
       .input(z.object({
         model: z.string().optional(),
         systemPrompt: z.string().optional(),
+        aiMode: aiModeSchema.optional(),
+        memoryEnabled: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        await db.updateUserSettings(ctx.user!.id, input.model, input.systemPrompt);
+        await db.updateUserSettings(ctx.user!.id, input.model, input.systemPrompt, input.aiMode, input.memoryEnabled);
         return { success: true };
       }),
   }),

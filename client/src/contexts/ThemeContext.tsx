@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { nextNovaTheme, persistNovaTheme, readNovaTheme, type NovaTheme } from "@/lib/themePreference";
 
-type Theme = "light" | "dark";
+type Theme = NovaTheme;
 
 interface ThemeContextType {
   theme: Theme;
@@ -19,7 +20,9 @@ export function ThemeProvider({
   children,
   defaultTheme = "dark",
 }: ThemeProviderProps) {
-  const [theme] = useState<Theme>(defaultTheme);
+  const [theme, setTheme] = useState<Theme>(() => readNovaTheme(localStorage, defaultTheme));
+
+  const toggleTheme = () => setTheme(nextNovaTheme);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -28,10 +31,11 @@ export function ThemeProvider({
     } else {
       root.classList.remove("dark");
     }
+    persistNovaTheme(localStorage, theme);
   }, [theme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme: undefined }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
