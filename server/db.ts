@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser, users, groqKeys, chatMessages, secrets,
   chartData, gitRepos, settings,
-  customModels, customTools, chatAttachments, githubOAuth
+  customModels, customTools, chatAttachments, githubOAuth, devProjects, devProjectFiles
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -82,6 +82,8 @@ export async function migrateAnonymousWorkspace(anonymousUserId: number, account
     await tx.update(customTools).set({ userId: accountUserId }).where(eq(customTools.userId, anonymousUserId));
     await tx.update(chatAttachments).set({ userId: accountUserId }).where(eq(chatAttachments.userId, anonymousUserId));
     await tx.update(githubOAuth).set({ userId: accountUserId }).where(eq(githubOAuth.userId, anonymousUserId));
+    await tx.update(devProjects).set({ userId: accountUserId }).where(eq(devProjects.userId, anonymousUserId));
+    await tx.update(devProjectFiles).set({ userId: accountUserId }).where(eq(devProjectFiles.userId, anonymousUserId));
   });
 }
 
@@ -363,4 +365,111 @@ export async function getAttachmentsByMessageId(userId: number, messageId: numbe
   const db = await getDb();
   if (!db) return [];
   return db.select().from(chatAttachments).where(and(eq(chatAttachments.userId, userId), eq(chatAttachments.messageId, messageId)));
+}
+
+// ── Developer Projects ──
+export async function listDevProjects(userId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(devProjects).where(eq(devProjects.userId, userId)).orderBy(desc(devProjects.updatedAt));
+}
+
+export async function getDevProject(userId: number, projectId: number): Promise<any | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(devProjects)
+    .where(and(eq(devProjects.userId, userId), eq(devProjects.id, projectId)))
+    .limit(1);
+  return result[0];
+}
+
+export async function createDevProject(userId: number, name: string, description?: string, githubRepoFullName?: string, runCommand?: string): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const result = await db.insert(devProjects).values({
+    userId,
+    name,
+    description: description || null,
+    githubRepoFullName: githubRepoFullName || null,
+    runCommand: runCommand || "npm run dev",
+  });
+  return Number(result[0].insertId);
+}
+
+export async function updateDevProject(userId: number, projectId: number, input: { name?: string; description?: string | null; githubRepoFullName?: string | null; runCommand?: string }): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(devProjects).set({
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.githubRepoFullName !== undefined ? { githubRepoFullName: input.githubRepoFullName } : {}),
+    ...(input.runCommand !== undefined ? { runCommand: input.runCommand } : {}),
+    updatedAt: new Date(),
+  }).where(and(eq(devProjects.userId, userId), eq(devProjects.id, projectId)));
+}
+
+export async function deleteDevProject(userId: number, projectId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.transaction(async tx => {
+    await tx.delete(devProjectFiles).where(and(eq(devProjectFiles.userId, userId), eq(devProjectFiles.projectId, projectId)));
+    await tx.delete(devProjects).where(and(eq(devProjects.userId, userId), eq(devProjects.id, projectId)));
+  });
+}
+
+export async function listDevProjectFiles(userId: number, projectId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: devProjectFiles.id,
+    path: devProjectFiles.path,
+    size: devProjectFiles.size,
+    updatedAt: devProjectFiles.updatedAt,
+    createdAt: devProjectFiles.createdAt,
+  }).from(devProjectFiles)
+    .where(and(eq(devProjectFiles.userId, userId), eq(devProjectFiles.projectId, projectId)))
+    .orderBy(devProjectFiles.path);
+}
+
+/** Server-only file manifest used to materialize a project for a bounded run. */
+export async function getDevProjectFilesForRun(userId: number, projectId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(devProjectFiles)
+    .where(and(eq(devProjectFiles.userId, userId), eq(devProjectFiles.projectId, projectId)))
+    .orderBy(devProjectFiles.path);
+}
+
+export async function getDevProjectFile(userId: number, projectId: number, filePath: string): Promise<any | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(devProjectFiles)
+    .where(and(
+      eq(devProjectFiles.userId, userId),
+      eq(devProjectFiles.projectId, projectId),
+      eq(devProjectFiles.path, filePath),
+    ))
+    .limit(1);
+  return result[0];
+}
+
+export async function saveDevProjectFile(userId: number, projectId: number, filePath: string, storageKey: string, size: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.insert(devProjectFiles).values({ userId, projectId, path: filePath, storageKey, size })
+    .onDuplicateKeyUpdate({ set: { storageKey, size, updatedAt: new Date() } });
+  await db.update(devProjects).set({ updatedAt: new Date() })
+    .where(and(eq(devProjects.userId, userId), eq(devProjects.id, projectId)));
+}
+
+export async function deleteDevProjectFile(userId: number, projectId: number, filePath: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.delete(devProjectFiles).where(and(
+    eq(devProjectFiles.userId, userId),
+    eq(devProjectFiles.projectId, projectId),
+    eq(devProjectFiles.path, filePath),
+  ));
+  await db.update(devProjects).set({ updatedAt: new Date() })
+    .where(and(eq(devProjects.userId, userId), eq(devProjects.id, projectId)));
 }

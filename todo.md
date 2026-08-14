@@ -153,3 +153,24 @@
 - [x] Validate the Linux/macOS launcher prerequisite and first-run configuration behavior
 - [x] Validate the Termux launcher first-run environment generation with a safe simulated package environment
 - [x] Validate the Windows PowerShell launcher syntax and document platform prerequisites
+
+## Replit-Style Development Workspace
+
+- [x] Audit existing terminal, uploads, GitHub, and workspace storage for reusable development-workspace capabilities
+- [x] Define secure project and file data structures scoped to each Nova AI workspace
+- [x] Add a project dashboard with project creation and selection
+- [x] Add a file explorer and editable source-file workspace
+- [x] Add project-scoped terminal execution, run controls, and a safe preview experience
+- [x] Connect selected projects to AI chat context and GitHub repository workflows
+- [x] Add regression tests and publish the Replit-style developer workspace
+- [x] Make the preview reliably render the saved index.html entry file when another editor tab is selected
+- [x] Add coverage for entry-file preview selection and bounded project run controls
+- [x] Add a project-specific GitHub repository selection and persist the validated linkage
+- [x] Verify that a linked project participates in GitHub repository context and workflows
+
+## Intent-Aware Private Secret Entry
+
+- [x] Detect user requests to enter a secret and offer a private vault entry flow instead of chat text
+- [x] Save requested secret values through the existing vault API without adding them to chat history
+- [x] Give the chat composer a clear private-secret entry action and explain the boundary
+- [x] Add regression coverage that private secret values are excluded from outgoing chat content

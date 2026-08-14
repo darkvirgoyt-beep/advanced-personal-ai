@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, mediumtext, longtext } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, mediumtext, longtext, uniqueIndex } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -118,9 +118,43 @@ export const chatAttachments = mysqlTable("chat_attachments", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+/**
+ * A user-owned code workspace. Source file bytes live in the configured storage
+ * provider; this table holds only project metadata and the optional GitHub link.
+ */
+export const devProjects = mysqlTable("dev_projects", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 128 }).notNull(),
+  description: varchar("description", { length: 512 }),
+  githubRepoFullName: varchar("githubRepoFullName", { length: 256 }),
+  runCommand: varchar("runCommand", { length: 512 }).default("npm run dev").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+/**
+ * File manifest for a project. Persisted source content is referenced through
+ * storageKey rather than embedded in MySQL.
+ */
+export const devProjectFiles = mysqlTable("dev_project_files", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  projectId: int("projectId").notNull(),
+  path: varchar("path", { length: 512 }).notNull(),
+  storageKey: varchar("storageKey", { length: 512 }).notNull(),
+  size: int("size").default(0).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => [uniqueIndex("dev_project_files_project_path_unique").on(table.projectId, table.path)]);
+
 export type CustomModel = typeof customModels.$inferSelect;
 export type InsertCustomModel = typeof customModels.$inferInsert;
 export type CustomTool = typeof customTools.$inferSelect;
 export type InsertCustomTool = typeof customTools.$inferInsert;
 export type ChatAttachment = typeof chatAttachments.$inferSelect;
 export type InsertChatAttachment = typeof chatAttachments.$inferInsert;
+export type DevProject = typeof devProjects.$inferSelect;
+export type InsertDevProject = typeof devProjects.$inferInsert;
+export type DevProjectFile = typeof devProjectFiles.$inferSelect;
+export type InsertDevProjectFile = typeof devProjectFiles.$inferInsert;

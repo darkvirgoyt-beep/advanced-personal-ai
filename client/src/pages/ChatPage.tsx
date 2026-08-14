@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -9,7 +10,7 @@ import {
 import {
   MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings,
   Send, Sparkles, Loader2, Trash2, Paperclip, X, Image, FileText, FileCode, LogIn,
-  Cpu, Wrench, Github, FolderGit2, ChevronDown,
+  Cpu, Wrench, Github, FolderGit2, ChevronDown, Code2,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -19,7 +20,9 @@ import { toast } from "sonner";
 import { nanoid } from "nanoid";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buildChatModelOptions, DEFAULT_CHAT_MODEL, getConfiguredProviderGuidance, type ConfiguredChatModel } from "@/lib/chatModelOptions";
+import { resolveComposerSecretAction } from "@/lib/privateSecretIntent";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -40,6 +43,17 @@ type GitHubRepository = {
   language: string | null;
 };
 
+type ActiveProjectSelection = { id: number; name: string; path?: string };
+
+function getActiveProjectSelection(): ActiveProjectSelection | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("nova-active-development-project") || "null");
+    return typeof parsed?.id === "number" && typeof parsed?.name === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function repositorySelectionKey(userId?: number): string {
   return `nova-selected-github-repositories:${userId || "workspace"}`;
 }
@@ -58,6 +72,7 @@ const navItems = [
   { icon: Shield, label: "Vault", path: "/vault" },
   { icon: Cpu, label: "Models", path: "/models" },
   { icon: Wrench, label: "Tools", path: "/tools" },
+  { icon: Code2, label: "Workspace", path: "/workspace" },
   { icon: Terminal, label: "Terminal", path: "/terminal" },
   { icon: BarChart3, label: "Charts", path: "/charts" },
   { icon: GitBranch, label: "Git", path: "/git" },
@@ -77,6 +92,11 @@ export default function ChatPage() {
   const [uploading, setUploading] = useState(false);
   const [selectedRepoFullNames, setSelectedRepoFullNames] = useState<string[]>([]);
   const [activeModel, setActiveModel] = useState(DEFAULT_CHAT_MODEL);
+  const [activeProject, setActiveProject] = useState<ActiveProjectSelection | null>(() => getActiveProjectSelection());
+  const [secretDialogOpen, setSecretDialogOpen] = useState(false);
+  const [secretName, setSecretName] = useState("");
+  const [secretValue, setSecretValue] = useState("");
+  const [secretRequest, setSecretRequest] = useState("");
 
   // All hooks before any early return
   const historyQuery = trpc.chat.history.useQuery({ sessionId }, { enabled: !loading });
@@ -87,6 +107,7 @@ export default function ChatPage() {
   const updateSettingsMutation = trpc.settings.update.useMutation();
   const customModelsQuery = trpc.models.list.useQuery(undefined, { enabled: !loading });
   const groqCheckQuery = trpc.groq.check.useQuery(undefined, { enabled: !loading });
+  const saveSecretMutation = trpc.vault.add.useMutation();
   const utils = trpc.useUtils();
 
   useEffect(() => { localStorage.setItem("nova-session", sessionId); }, [sessionId]);
@@ -176,6 +197,15 @@ export default function ChatPage() {
   const handleSend = async () => {
     const trimmed = input.trim();
     if ((!trimmed && pendingFiles.length === 0) || isLoading) return;
+    const secretAction = resolveComposerSecretAction(trimmed, pendingFiles.length > 0);
+    if (secretAction.kind === "open-private-vault") {
+      setSecretRequest(secretAction.request);
+      setSecretName("");
+      setSecretValue("");
+      setInput("");
+      setSecretDialogOpen(true);
+      return;
+    }
     setInput("");
     setIsLoading(true);
     const fileNames = pendingFiles.map(f => f.name).join(", ");
@@ -188,6 +218,8 @@ export default function ChatPage() {
         sessionId,
         attachmentInfo,
         selectedRepoFullNames,
+        activeProjectId: activeProject?.id,
+        activeProjectPath: activeProject?.path,
       });
       setMessages(prev => [...prev, { role: "assistant", content: result.message }]);
     } catch (err: any) {
@@ -204,6 +236,31 @@ export default function ChatPage() {
       setMessages([]);
       toast.success("Chat cleared");
     } catch { toast.error("Failed to clear"); }
+  };
+
+  const openPrivateSecretDialog = () => {
+    setSecretRequest("");
+    setSecretName("");
+    setSecretValue("");
+    setSecretDialogOpen(true);
+  };
+
+  const savePrivateSecret = async () => {
+    const name = secretName.trim();
+    if (!name || !secretValue) {
+      toast.error("Add a secret name and value");
+      return;
+    }
+    try {
+      await saveSecretMutation.mutateAsync({ name, value: secretValue });
+      setSecretDialogOpen(false);
+      setSecretName("");
+      setSecretValue("");
+      setSecretRequest("");
+      toast.success("Saved privately to the vault — it was not added to chat history");
+    } catch (error: any) {
+      toast.error(error.message || "Could not save private secret");
+    }
   };
 
   return (
@@ -304,6 +361,23 @@ export default function ChatPage() {
 
           {/* Input */}
           <div className="border-t border-border/50 p-4">
+            <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2">
+              <div className="min-w-0 flex items-center gap-2">
+                <Shield className="h-4 w-4 shrink-0 text-emerald-500" />
+                <div className="min-w-0"><p className="text-xs font-medium">Private vault</p><p className="truncate text-[11px] text-muted-foreground">Save a token, password, or key privately. It never appears in chat history.</p></div>
+              </div>
+              <Button variant="outline" size="sm" className="shrink-0 border-emerald-500/30" onClick={openPrivateSecretDialog}><Shield className="mr-1 h-3.5 w-3.5" /> Add secret</Button>
+            </div>
+            <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between gap-3 rounded-lg border border-indigo-500/25 bg-indigo-500/5 px-3 py-2">
+              <div className="min-w-0 flex items-center gap-2">
+                <Code2 className="h-4 w-4 shrink-0 text-indigo-500" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium">Development project context</p>
+                  <p className="truncate text-[11px] text-muted-foreground">{activeProject ? `${activeProject.name}${activeProject.path ? ` · ${activeProject.path}` : ""}` : "No active project selected"}</p>
+                </div>
+              </div>
+              {activeProject ? <Button variant="outline" size="sm" className="shrink-0" onClick={() => { localStorage.removeItem("nova-active-development-project"); setActiveProject(null); }}><X className="mr-1 h-3.5 w-3.5" /> Clear</Button> : <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate("/workspace")}><Code2 className="mr-1 h-3.5 w-3.5" /> Choose project</Button>}
+            </div>
             <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
               <div className="min-w-0 flex items-center gap-2">
                 <Cpu className="h-4 w-4 shrink-0 text-primary" />
@@ -437,6 +511,18 @@ export default function ChatPage() {
           </div>
         </main>
       </div>
+      <Dialog open={secretDialogOpen} onOpenChange={setSecretDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-emerald-500" /> Private secret vault</DialogTitle>
+            <DialogDescription>{secretRequest ? "Nova opened this private form from your request. Your value will not be sent as a chat message." : "Save a sensitive value privately. Nova can use it server-side when needed, but it is never shown in your chat."}</DialogDescription>
+          </DialogHeader>
+          <label className="grid gap-1.5 text-sm font-medium">Secret label<Input value={secretName} onChange={event => setSecretName(event.target.value)} placeholder="Example: OpenRouter API key" autoFocus /></label>
+          <label className="grid gap-1.5 text-sm font-medium">Secret value<Input type="password" value={secretValue} onChange={event => setSecretValue(event.target.value)} placeholder="Paste the private value" autoComplete="off" /></label>
+          <p className="text-xs text-muted-foreground">The value is submitted directly to your private vault. Do not paste secrets into the regular message field.</p>
+          <DialogFooter><Button variant="outline" onClick={() => setSecretDialogOpen(false)}>Cancel</Button><Button onClick={savePrivateSecret} disabled={saveSecretMutation.isPending} className="bg-emerald-600 hover:bg-emerald-500">{saveSecretMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save privately</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 }

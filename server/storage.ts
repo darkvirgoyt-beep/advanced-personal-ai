@@ -2,7 +2,7 @@
 // Uploads via Forge Server presigned URL to S3 (PUT direct).
 // Downloads return /manus-storage/{key} paths served via 307 redirect.
 
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { ENV } from "./_core/env";
 
@@ -124,4 +124,24 @@ export async function storageGetSignedUrl(relKey: string): Promise<string> {
 
   const { url } = (await resp.json()) as { url: string };
   return url;
+}
+
+/** Read a bounded UTF-8 text asset for the source editor. Binary project assets
+ * remain represented by their storage URL and are not loaded into the editor. */
+export async function storageReadText(relKey: string, maxBytes = 512 * 1024): Promise<string> {
+  const key = normalizeKey(relKey);
+  if (usesLocalStorage()) {
+    const content = await readFile(getLocalStorageFilePath(key));
+    if (content.byteLength > maxBytes) throw new Error("Source file exceeds the editor size limit");
+    return content.toString("utf8");
+  }
+
+  const url = await storageGetSignedUrl(key);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Stored source file could not be loaded (${response.status})`);
+  const contentLength = Number(response.headers.get("content-length") || "0");
+  if (contentLength > maxBytes) throw new Error("Source file exceeds the editor size limit");
+  const content = await response.text();
+  if (Buffer.byteLength(content, "utf8") > maxBytes) throw new Error("Source file exceeds the editor size limit");
+  return content;
 }

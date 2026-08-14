@@ -1,0 +1,1 @@
+ALTER TABLE `dev_project_files` ADD CONSTRAINT `dev_project_files_project_path_unique` UNIQUE(`projectId`,`path`);

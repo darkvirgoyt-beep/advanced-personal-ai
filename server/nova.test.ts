@@ -33,9 +33,19 @@ vi.mock("./db", () => ({
   saveCustomTool: vi.fn(),
   deleteCustomTool: vi.fn(),
   saveChatAttachment: vi.fn(),
+  getDevProject: vi.fn(),
+  listDevProjectFiles: vi.fn(),
+  createDevProject: vi.fn(),
+  updateDevProject: vi.fn(),
+}));
+
+vi.mock("./storage", () => ({
+  storagePut: vi.fn(),
+  storageReadText: vi.fn(),
 }));
 
 import * as db from "./db";
+import * as storage from "./storage";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -45,6 +55,10 @@ beforeEach(() => {
   vi.mocked(db.getCustomTools).mockResolvedValue([]);
   vi.mocked(db.getActiveCustomModels).mockResolvedValue([]);
   vi.mocked(db.getGitHubAccessToken).mockResolvedValue(undefined);
+  vi.mocked(db.getDevProject).mockResolvedValue(undefined);
+  vi.mocked(db.listDevProjectFiles).mockResolvedValue([]);
+  vi.mocked(db.createDevProject).mockResolvedValue(1);
+  vi.mocked(storage.storageReadText).mockResolvedValue("");
 });
 
 afterEach(() => {
@@ -199,6 +213,36 @@ describe("chat operations", () => {
     expect(body.messages[0].content).toContain("darkvirgoyt-beep/nova");
     expect(body.messages[0].content).not.toContain("github-token-should-stay-server-side");
   });
+
+  it("adds an owned active development project and open-file excerpt to AI context", async () => {
+    vi.mocked(db.getUserSettings).mockResolvedValue(null);
+    vi.mocked(db.getActiveGroqKey).mockResolvedValue("gsk_test1234567890abcdefghijklmnop");
+    vi.mocked(db.getDevProject).mockResolvedValue({ id: 11, userId: 1, name: "Portfolio site", description: "Personal website", githubRepoFullName: "VirgoYT/portfolio", runCommand: "npm run dev" } as any);
+    vi.mocked(db.listDevProjectFiles).mockResolvedValue([{ id: 1, projectId: 11, path: "src/app.ts", storageKey: "dev-projects/1/11/src/app.ts", size: 42, updatedAt: new Date() }] as any);
+    vi.mocked(storage.storageReadText).mockResolvedValue("export const greeting = 'hello';");
+    vi.mocked(db.getGitHubAccessToken).mockResolvedValue("server-only-github-token");
+    vi.mocked(db.saveChatMessage).mockResolvedValue(undefined);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/commits")) return { ok: true, status: 200, json: async () => [{ sha: "abc123456", commit: { message: "Build landing page", author: { name: "VirgoYT" } } }] };
+      if (url.includes("/readme")) return { ok: true, status: 200, text: async () => "# Portfolio\nProject documentation." };
+      if (url.includes("api.github.com/repos")) return { ok: true, status: 200, json: async () => ({ full_name: "VirgoYT/portfolio", html_url: "https://github.com/VirgoYT/portfolio", private: true, default_branch: "main", language: "TypeScript", description: "Portfolio source" }) };
+      if (url === "https://api.groq.com/openai/v1/chat/completions") return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: "Project context received." } }] }) };
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.chat.send({ message: "Review this file", sessionId: "project-context", activeProjectId: 11, activeProjectPath: "src/app.ts" })).resolves.toEqual({ message: "Project context received." });
+    const groqCall = fetchMock.mock.calls.find(([url]) => url === "https://api.groq.com/openai/v1/chat/completions");
+    const body = JSON.parse(String(groqCall?.[1]?.body));
+    expect(body.messages[0].content).toContain("[ACTIVE NOVA DEVELOPMENT PROJECT]");
+    expect(body.messages[0].content).toContain("Portfolio site");
+    expect(body.messages[0].content).toContain("OPEN EDITOR FILE: src/app.ts");
+    expect(body.messages[0].content).toContain("export const greeting = 'hello';");
+    expect(body.messages[0].content).toContain("[SELECTED GITHUB REPOSITORY CONTEXT]");
+    expect(body.messages[0].content).toContain("Build landing page");
+    expect(body.messages[0].content).not.toContain("server-only-github-token");
+  });
 });
 
 describe("GitHub repository discovery", () => {
@@ -215,6 +259,22 @@ describe("GitHub repository discovery", () => {
     const result = await caller.git.listGitHubRepos();
     expect(result).toMatchObject({ connected: true, repos: [{ fullName: "darkvirgoyt-beep/nova", private: true, defaultBranch: "main" }] });
     expect(JSON.stringify(result)).not.toContain("server-only-token");
+  });
+
+  it("links a development project only to a repository exposed by its current GitHub connection", async () => {
+    vi.mocked(db.getGitHubAccessToken).mockResolvedValue("server-only-token");
+    vi.mocked(db.createDevProject).mockResolvedValue(15);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => [{ id: 8, name: "portfolio", full_name: "VirgoYT/portfolio", private: true, default_branch: "main", html_url: "https://github.com/VirgoYT/portfolio", language: "TypeScript", updated_at: "2026-08-14T00:00:00Z" }] })));
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.projects.create({ name: "Portfolio", githubRepoFullName: "VirgoYT/portfolio" })).resolves.toEqual({ id: 15 });
+    expect(db.createDevProject).toHaveBeenCalledWith(1, "Portfolio", undefined, "VirgoYT/portfolio", undefined);
+  });
+
+  it("rejects project links to repositories unavailable from the current GitHub connection", async () => {
+    vi.mocked(db.getGitHubAccessToken).mockResolvedValue(undefined);
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.projects.create({ name: "Private", githubRepoFullName: "other/private" })).rejects.toThrow("Connect GitHub");
+    expect(db.createDevProject).not.toHaveBeenCalled();
   });
 });
 
