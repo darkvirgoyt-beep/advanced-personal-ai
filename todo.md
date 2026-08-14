@@ -69,3 +69,19 @@
 - [x] Add selectable Ubuntu and Kali-style terminal workspace profiles with clear host-environment limits
 - [x] Return a non-sensitive custom model key-status flag to the UI
 - [x] Use the key-status flag to expose custom API-key replace and remove controls correctly
+
+## GitHub Authorization Repair
+
+- [x] Diagnose the GitHub authorization 404 from the live application
+- [x] Repair the GitHub authorization entry route and callback configuration
+- [ ] Verify the live GitHub authorization redirect and document any required GitHub settings
+- [x] Bind GitHub OAuth state and stored connection tokens to each Nova AI workspace
+- [x] Fix the OAuth callback to exchange GitHub’s authorization code after state validation
+- [x] Show connected GitHub account status and clear authorization guidance in the Git page
+- [x] Load GitHub connection status for anonymous device workspaces and verify connected-account display
+- [x] Add explicit GitHub authorization guidance and callback error feedback in the Git page
+- [x] Verify anonymous-workspace GitHub connected status and disconnect isolation end to end
+- [x] Add regression coverage for GitHub status and disconnect behavior scoped to the current workspace
+- [x] Add executable two-workspace tests for GitHub connection status and disconnect isolation
+- [x] Verify a successful anonymous GitHub callback displays the linked account in the Git workspace
+- [x] Add executable interface coverage that maps callback-linked GitHub status to the connected-account display

@@ -85,6 +85,52 @@ export async function migrateAnonymousWorkspace(anonymousUserId: number, account
   });
 }
 
+export async function createGitHubAuthorizationState(userId: number, state: string, stateExpiry: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.insert(githubOAuth).values({ userId, state, stateExpiry });
+}
+
+export async function getGitHubAuthorizationState(state: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(githubOAuth).where(eq(githubOAuth.state, state)).limit(1);
+  return result[0];
+}
+
+export async function saveGitHubConnection(
+  state: string,
+  githubId: string,
+  githubLogin: string,
+  accessToken: string,
+  scope: string,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(githubOAuth)
+    .set({ githubId, githubLogin, accessToken, scope, stateExpiry: null })
+    .where(eq(githubOAuth.state, state));
+}
+
+export async function getGitHubConnection(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select({ githubLogin: githubOAuth.githubLogin, scope: githubOAuth.scope })
+    .from(githubOAuth)
+    .where(and(eq(githubOAuth.userId, userId), sql`${githubOAuth.accessToken} IS NOT NULL`))
+    .orderBy(desc(githubOAuth.id))
+    .limit(1);
+  return result[0];
+}
+
+export async function clearGitHubConnection(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(githubOAuth)
+    .set({ accessToken: null, githubLogin: null, githubId: null, scope: null })
+    .where(eq(githubOAuth.userId, userId));
+}
+
 // ── Groq Keys ──
 export async function saveGroqKey(userId: number, apiKey: string): Promise<void> {
   const db = await getDb();

@@ -239,3 +239,25 @@ describe("Google OAuth configuration", () => {
     expect(body.error).not.toBe("invalid_client");
   }, 20_000);
 });
+
+describe("GitHub OAuth configuration", () => {
+  it("accepts the configured client credentials at GitHub’s token endpoint", async () => {
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    expect(clientId).toBeTruthy();
+    expect(clientSecret).toBeTruthy();
+
+    const response = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: clientId!,
+        client_secret: clientSecret!,
+        code: "credential-validation-only",
+        redirect_uri: "https://novaai-r2evuk7k.manus.space/api/github/callback",
+      }),
+    });
+    const body = await response.json() as { error?: string };
+    expect(body.error).not.toBe("incorrect_client_credentials");
+  }, 20_000);
+});

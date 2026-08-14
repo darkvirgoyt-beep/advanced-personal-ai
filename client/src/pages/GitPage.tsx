@@ -15,9 +15,10 @@ import {
   User, Plus, Trash2, Download, Loader2, Github,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { getGitHubConnectionMessage } from "@/lib/githubConnection";
 
 const navItems = [
   { icon: MessageSquare, label: "Chat", path: "/chat" },
@@ -29,7 +30,7 @@ const navItems = [
 ];
 
 export default function GitPage() {
-  const { user, loading, isAuthenticated, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [, navigate] = useLocation();
   const [showForm, setShowForm] = useState(false);
   const [repoName, setRepoName] = useState("");
@@ -38,14 +39,49 @@ export default function GitPage() {
   const [username, setUsername] = useState("");
   const [token, setToken] = useState("");
   const [pushing, setPushing] = useState(false);
+  const [githubConnection, setGithubConnection] = useState<{ connected: boolean; login: string } | null>(null);
+  const connectionMessage = getGitHubConnectionMessage(githubConnection);
 
-  const gitQuery = trpc.git.list.useQuery(undefined, { enabled: !!user });
+  const gitQuery = trpc.git.list.useQuery(undefined, { enabled: !loading });
   const addMutation = trpc.git.add.useMutation();
   const deleteMutation = trpc.git.delete.useMutation();
   const pushMutation = trpc.git.push.useMutation();
   const utils = trpc.useUtils();
 
-  if (loading || !isAuthenticated) return null;
+  useEffect(() => {
+    if (loading) return;
+    fetch("/api/github/status")
+      .then(response => response.ok ? response.json() : null)
+      .then(status => { if (status) setGithubConnection(status); })
+      .catch(() => setGithubConnection(null));
+  }, [loading]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("github_connected") === "true") {
+      toast.success("GitHub connected to this Nova AI workspace");
+      window.history.replaceState({}, "", "/git");
+      fetch("/api/github/status")
+        .then(response => response.ok ? response.json() : null)
+        .then(status => { if (status) setGithubConnection(status); })
+        .catch(() => undefined);
+      return;
+    }
+
+    const authError = params.get("error");
+    const messages: Record<string, string> = {
+      github_not_configured: "GitHub sign-in is not configured yet.",
+      github_auth_expired: "GitHub sign-in expired. Please authorize again.",
+      github_profile_failed: "GitHub could not provide account information. Please try again.",
+      github_auth_failed: "GitHub authorization was not completed. Please try again.",
+    };
+    if (authError && messages[authError]) {
+      toast.error(messages[authError]);
+      window.history.replaceState({}, "", "/git");
+    }
+  }, []);
+
+  if (loading) return null;
 
   const handleAdd = async () => {
     if (!repoName.trim() || !remoteUrl.trim()) { toast.error("Name and URL required"); return; }
@@ -126,26 +162,30 @@ export default function GitPage() {
           <header className="h-14 border-b border-border/50 flex items-center justify-between px-4">
             <h2 className="font-semibold text-sm">Git Repositories</h2>
             <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="bg-white text-black hover:bg-gray-100"
-                onClick={async () => {
-                  try {
-                    const res = await fetch("/api/github/authorize");
-                    const data = await res.json();
-                    if (data.url) {
-                      window.location.href = data.url;
-                    } else {
-                      toast.error("GitHub client ID not configured. Set GITHUB_CLIENT_ID env var.");
-                    }
-                  } catch {
-                    toast.error("Failed to generate GitHub authorize URL");
-                  }
-                }}
-              >
-                <Github className="w-4 h-4 mr-1" /> Authorize GitHub
-              </Button>
+              {githubConnection?.connected ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="bg-white text-black hover:bg-gray-100"
+                  onClick={async () => {
+                    const response = await fetch("/api/github/disconnect", { method: "POST" });
+                    if (!response.ok) return toast.error("Could not disconnect GitHub");
+                    setGithubConnection({ connected: false, login: "" });
+                    toast.success("GitHub disconnected from this workspace");
+                  }}
+                >
+                  <Github className="w-4 h-4 mr-1" /> Connected: {githubConnection.login} · Disconnect
+                </Button>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="bg-white text-black hover:bg-gray-100"
+                  onClick={() => window.location.assign("/api/github/authorize")}
+                >
+                  <Github className="w-4 h-4 mr-1" /> Authorize GitHub
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -161,6 +201,12 @@ export default function GitPage() {
 
           <ScrollArea className="flex-1 p-4">
             <div className="max-w-3xl mx-auto">
+              <Card className="p-4 mb-4 bg-muted/40">
+                <p className="text-sm text-muted-foreground">
+                  <strong className="text-foreground">{connectionMessage.title}</strong> {connectionMessage.detail}
+                </p>
+              </Card>
+
               {showForm && (
                 <Card className="p-4 mb-4 space-y-3">
                   <Input placeholder="Repository name" value={repoName} onChange={e => setRepoName(e.target.value)} />

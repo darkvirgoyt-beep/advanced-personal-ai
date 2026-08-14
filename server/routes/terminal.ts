@@ -1,6 +1,6 @@
 import { exec } from "child_process";
 import { promisify } from "util";
-import { Express, Request } from "express";
+import { Express, Request, Response } from "express";
 import { ZipArchive } from "archiver";
 import multer from "multer";
 import path from "path";
@@ -21,6 +21,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 const GOOGLE_STATE_COOKIE = "nova_google_oauth_state";
 const WORKSPACE_COOKIE = "nova_workspace";
 const GOOGLE_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/auth/google/callback";
+const GITHUB_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/github/callback";
 
 function readCookie(req: Request, name: string): string | undefined {
   return parseCookie(req.headers.cookie ?? "")[name];
@@ -33,6 +34,27 @@ function validWorkspaceToken(value: string | undefined): value is string {
 function safeEquals(left: string | undefined, right: string | undefined): boolean {
   if (!left || !right || left.length !== right.length) return false;
   return timingSafeEqual(Buffer.from(left), Buffer.from(right));
+}
+
+async function resolveWorkspaceUser(req: Request, res: Response) {
+  try {
+    const accountUser = await sdk.authenticateRequest(req);
+    if (accountUser) return accountUser;
+  } catch {
+    // Direct anonymous workspaces are valid Nova AI sessions.
+  }
+
+  const existingToken = readCookie(req, WORKSPACE_COOKIE);
+  const workspaceToken = validWorkspaceToken(existingToken)
+    ? existingToken
+    : randomBytes(24).toString("base64url");
+  if (workspaceToken !== existingToken) {
+    res.cookie(WORKSPACE_COOKIE, workspaceToken, {
+      ...getSessionCookieOptions(req),
+      maxAge: ONE_YEAR_MS,
+    });
+  }
+  return db.getOrCreateAnonymousWorkspace(workspaceToken);
 }
 
 export function registerCustomRoutes(app: Express) {
@@ -244,101 +266,86 @@ export function registerCustomRoutes(app: Express) {
     res.json({ status: "ok" });
   });
 
-  // GitHub OAuth - Generate authorize URL
+  // GitHub OAuth - start an authorization request owned by the current workspace.
   app.get("/api/github/authorize", async (req, res) => {
-    const clientId = process.env.GITHUB_CLIENT_ID || "";
-    const state = nanoid(32);
-    const expiry = Math.floor(Date.now() / 1000) + 600; // 10 min
-    
-    try {
-      if (process.env.DATABASE_URL) {
-        const db = drizzle(process.env.DATABASE_URL);
-        await db.insert(githubOAuth).values({
-          userId: 0, // Will be set on callback
-          state: state,
-          stateExpiry: expiry,
-        });
-      }
-    } catch (e) {
-      console.error("Failed to store GitHub OAuth state", e);
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      return res.status(503).json({ error: "GitHub OAuth is not configured for this Nova AI deployment." });
     }
 
-    const scope = "repo,user:email,read:user";
-    const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&state=${state}&scope=${scope}`;
-    res.json({ url });
+    try {
+      const user = await resolveWorkspaceUser(req, res);
+      const state = randomBytes(24).toString("base64url");
+      const expiry = Math.floor(Date.now() / 1000) + 600;
+      await db.createGitHubAuthorizationState(user.id, state, expiry);
+
+      const authorizeUrl = new URL("https://github.com/login/oauth/authorize");
+      authorizeUrl.searchParams.set("client_id", clientId);
+      authorizeUrl.searchParams.set("redirect_uri", GITHUB_CALLBACK_URL);
+      authorizeUrl.searchParams.set("state", state);
+      authorizeUrl.searchParams.set("scope", "repo read:user user:email");
+      return res.redirect(authorizeUrl.toString());
+    } catch (error) {
+      console.error("[GitHub OAuth] Unable to start authorization", error);
+      return res.status(500).json({ error: "Unable to start GitHub authorization. Please try again." });
+    }
   });
 
-  // GitHub OAuth - Callback
+  // GitHub OAuth - validate the state, exchange the real code, and link only its originating workspace.
   app.get("/api/github/callback", async (req, res) => {
-    const { code, state } = req.query;
-    if (!code || !state) {
-      return res.redirect("/?error=github_auth_failed");
-    }
+    const code = typeof req.query.code === "string" ? req.query.code : undefined;
+    const state = typeof req.query.state === "string" ? req.query.state : undefined;
+    if (!code || !state) return res.redirect("/git?error=github_auth_failed");
 
-    const clientId = process.env.GITHUB_CLIENT_ID || "";
-    const clientSecret = process.env.GITHUB_CLIENT_SECRET || "";
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return res.redirect("/git?error=github_not_configured");
 
     try {
-      // Exchange code for access token
+      const pendingAuthorization = await db.getGitHubAuthorizationState(state);
+      if (!pendingAuthorization || !pendingAuthorization.stateExpiry || pendingAuthorization.stateExpiry < Math.floor(Date.now() / 1000)) {
+        return res.redirect("/git?error=github_auth_expired");
+      }
+
       const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code: state as string }),
+        body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: GITHUB_CALLBACK_URL }),
       });
-      const tokenData = await tokenRes.json();
+      const tokenData = await tokenRes.json() as { access_token?: string; scope?: string };
       const accessToken = tokenData.access_token;
-      if (!accessToken) {
-        return res.redirect("/?error=github_auth_failed");
-      }
+      if (!tokenRes.ok || !accessToken) return res.redirect("/git?error=github_auth_failed");
 
-      // Get user info
       const userRes = await fetch("https://api.github.com/user", {
         headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/vnd.github+json" },
       });
-      const ghUser = await userRes.json();
+      const ghUser = await userRes.json() as { id?: number; login?: string };
+      if (!userRes.ok || !ghUser.id || !ghUser.login) return res.redirect("/git?error=github_profile_failed");
 
-      // Update DB
-      if (process.env.DATABASE_URL) {
-        const db = drizzle(process.env.DATABASE_URL);
-        await db.update(githubOAuth)
-          .set({
-            githubId: String(ghUser.id || ""),
-            githubLogin: ghUser.login || "",
-            accessToken: accessToken,
-            scope: tokenData.scope || "",
-          })
-          .where(sql`state = ${state}`);
-      }
-
+      await db.saveGitHubConnection(state, String(ghUser.id), ghUser.login, accessToken, tokenData.scope || "");
       res.redirect("/git?github_connected=true");
-    } catch {
-      res.redirect("/?error=github_auth_failed");
+    } catch (error) {
+      console.error("[GitHub OAuth] Callback failed", error);
+      res.redirect("/git?error=github_auth_failed");
     }
   });
 
-  // GitHub OAuth - Status
-  app.get("/api/github/status", async (_req, res) => {
+  // GitHub OAuth - status and disconnect actions are scoped to the current workspace.
+  app.get("/api/github/status", async (req, res) => {
     try {
-      if (process.env.DATABASE_URL) {
-        const db = drizzle(process.env.DATABASE_URL);
-        const rows = await db.select().from(githubOAuth).where(sql`accessToken IS NOT NULL`);
-        if (rows.length > 0 && rows[0]) {
-          return res.json({ connected: true, login: rows[0].githubLogin || "" });
-        }
-      }
-      res.json({ connected: false });
+      const user = await resolveWorkspaceUser(req, res);
+      const connection = await db.getGitHubConnection(user.id);
+      res.json({ connected: !!connection, login: connection?.githubLogin || "", scope: connection?.scope || "" });
     } catch {
       res.json({ connected: false });
     }
   });
 
-  // GitHub OAuth - Disconnect
-  app.post("/api/github/disconnect", async (_req, res) => {
+  app.post("/api/github/disconnect", async (req, res) => {
     try {
-      if (process.env.DATABASE_URL) {
-        const db = drizzle(process.env.DATABASE_URL);
-        await db.update(githubOAuth).set({ accessToken: null, githubLogin: null }).where(sql`1=1`);
-      }
+      const user = await resolveWorkspaceUser(req, res);
+      await db.clearGitHubConnection(user.id);
       res.json({ success: true });
     } catch {
       res.json({ success: false });
