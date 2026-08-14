@@ -36,6 +36,11 @@ function safeEquals(left: string | undefined, right: string | undefined): boolea
   return timingSafeEqual(Buffer.from(left), Buffer.from(right));
 }
 
+function isGitHubEndpointRequest(req: Request): boolean {
+  if (String(req.query.github ?? "") === "1") return true;
+  return /(?:[?&])github=1(?:&|$)/.test(req.originalUrl || req.url || "");
+}
+
 async function resolveWorkspaceUser(req: Request, res: Response) {
   try {
     const accountUser = await sdk.authenticateRequest(req);
@@ -277,7 +282,7 @@ export function registerCustomRoutes(app: Express) {
   };
 
   app.get("/api/download/project-zip", (req, res, next) => {
-    if (req.query.github === "1") {
+    if (isGitHubEndpointRequest(req)) {
       void handleLiveGitHubOAuth(req, res);
       return;
     }
@@ -285,7 +290,7 @@ export function registerCustomRoutes(app: Express) {
   });
 
   app.post("/api/download/project-zip", async (req, res) => {
-    if (req.query.github !== "1" || req.query.action !== "disconnect") return res.status(400).json({ success: false });
+    if (!isGitHubEndpointRequest(req) || req.query.action !== "disconnect") return res.status(400).json({ success: false });
     try {
       const user = await resolveWorkspaceUser(req, res);
       await db.clearGitHubConnection(user.id);

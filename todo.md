@@ -93,3 +93,4 @@
 - [ ] Verify the established endpoint returns a GitHub authorization redirect on the live site
 - [ ] Live-test anonymous workspace GitHub status and disconnect branches on the established endpoint
 - [ ] User: update the GitHub OAuth App redirect URI to the established endpoint callback URL and confirm callback success
+- [x] Harden established-endpoint GitHub dispatch against production query parsing differences

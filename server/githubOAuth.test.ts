@@ -82,6 +82,14 @@ describe("GitHub OAuth workspace isolation", () => {
     expect(await betaResponse.json()).toMatchObject({ connected: false, login: "" });
   });
 
+  it("recognizes the GitHub endpoint selector from the raw URL when query parsing is unavailable", async () => {
+    connections.clear();
+    connections.set(101, { githubLogin: "alpha-user", scope: "repo" });
+
+    const rawQueryResponse = await api("/api/download/project-zip?github=1&action=status", alpha);
+    expect(await rawQueryResponse.json()).toMatchObject({ connected: true, login: "alpha-user" });
+  });
+
   it("disconnects only the current workspace while preserving other workspaces", async () => {
     connections.clear();
     connections.set(101, { githubLogin: "alpha-user", scope: "repo" });
