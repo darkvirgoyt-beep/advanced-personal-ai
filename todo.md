@@ -210,6 +210,6 @@
 - [x] Add regression coverage for portable conversation validation and workspace isolation
 - [x] Add chat-side import messaging that confirms import creates a new private conversation and never overwrites the current chat
 - [x] Add a compact privacy note beside chat export/import actions explaining that only text messages are exported
-- [ ] Verify responsive behavior, core regression coverage, and publish the NovaAI ecosystem update
-- [ ] Produce a complete final production build or document a verified equivalent release artifact if sandbox limits block it
-- [ ] Save a restorable final NovaAI ecosystem checkpoint and re-verify the published release state
+- [x] Verify responsive behavior, core regression coverage, and publish the NovaAI ecosystem update
+- [x] Produce a complete final production build or document a verified equivalent release artifact if sandbox limits block it
+- [x] Save a restorable final NovaAI ecosystem checkpoint and re-verify the published release state
