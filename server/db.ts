@@ -2,7 +2,8 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser, users, groqKeys, chatMessages, secrets,
-  chartData, gitRepos, settings
+  chartData, gitRepos, settings,
+  customModels, customTools, chatAttachments
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -178,4 +179,71 @@ export async function updateUserSettings(userId: number, model?: string, systemP
   } else {
     await db.insert(settings).values({ userId, model: model || 'llama-3.3-70b-versatile', systemPrompt: systemPrompt || null });
   }
+}
+
+// ── Custom Models ──
+export async function saveCustomModel(userId: number, name: string, provider: string, endpoint: string, apiKey: string | null, modelName: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.insert(customModels).values({ userId, name, provider, endpoint, apiKey, modelName, isActive: 'true' });
+}
+
+export async function getCustomModels(userId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(customModels).where(eq(customModels.userId, userId));
+}
+
+export async function getActiveCustomModels(userId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(customModels).where(and(eq(customModels.userId, userId), eq(customModels.isActive, 'true')));
+}
+
+export async function deleteCustomModel(userId: number, id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.delete(customModels).where(and(eq(customModels.userId, userId), eq(customModels.id, id)));
+}
+
+export async function toggleCustomModel(userId: number, id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const model = await db.select().from(customModels).where(and(eq(customModels.userId, userId), eq(customModels.id, id))).limit(1);
+  if (model[0]) {
+    const newStatus = model[0].isActive === 'true' ? 'false' : 'true';
+    await db.update(customModels).set({ isActive: newStatus as any }).where(eq(customModels.id, id));
+  }
+}
+
+// ── Custom Tools ──
+export async function saveCustomTool(userId: number, name: string, description: string | null, toolType: string, endpoint: string | null, systemInstruction: string | null): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.insert(customTools).values({ userId, name, description, toolType, endpoint, systemInstruction, isActive: 'true' });
+}
+
+export async function getCustomTools(userId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(customTools).where(eq(customTools.userId, userId));
+}
+
+export async function deleteCustomTool(userId: number, id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.delete(customTools).where(and(eq(customTools.userId, userId), eq(customTools.id, id)));
+}
+
+// ── Chat Attachments ──
+export async function saveChatAttachment(userId: number, messageId: number | null, fileName: string, fileType: string, fileSize: number | null, storageKey: string, url: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.insert(chatAttachments).values({ userId, messageId, fileName, fileType, fileSize, storageKey, url });
+}
+
+export async function getAttachmentsByMessageId(userId: number, messageId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(chatAttachments).where(and(eq(chatAttachments.userId, userId), eq(chatAttachments.messageId, messageId)));
 }

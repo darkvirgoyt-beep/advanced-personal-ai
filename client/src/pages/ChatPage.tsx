@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings, LogOut,
-  Send, User, Sparkles, Loader2, Trash2,
+  Send, User, Sparkles, Loader2, Trash2, Paperclip, X, Image, FileText, FileCode,
+  Cpu, Wrench,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -23,9 +24,18 @@ import { nanoid } from "nanoid";
 
 type Message = { role: "user" | "assistant"; content: string };
 
+type PendingFile = {
+  name: string;
+  type: string;
+  size: number;
+  url: string;
+};
+
 const navItems = [
   { icon: MessageSquare, label: "Chat", path: "/chat" },
   { icon: Shield, label: "Vault", path: "/vault" },
+  { icon: Cpu, label: "Models", path: "/models" },
+  { icon: Wrench, label: "Tools", path: "/tools" },
   { icon: Terminal, label: "Terminal", path: "/terminal" },
   { icon: BarChart3, label: "Charts", path: "/charts" },
   { icon: GitBranch, label: "Git", path: "/git" },
@@ -40,6 +50,9 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   // All hooks before any early return
   const historyQuery = trpc.chat.history.useQuery({ sessionId }, { enabled: !!user });
@@ -61,19 +74,48 @@ export default function ChatPage() {
 
   if (loading || !isAuthenticated) return null;
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/upload/file", { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.success) {
+          setPendingFiles(prev => [...prev, { name: file.name, type: file.type, size: file.size, url: data.url }]);
+        } else {
+          toast.error(`Failed to upload ${file.name}`);
+        }
+      }
+    } catch { toast.error("Upload failed"); }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removePendingFile = (index: number) => {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    if ((!trimmed && pendingFiles.length === 0) || isLoading) return;
     setInput("");
     setIsLoading(true);
-    setMessages(prev => [...prev, { role: "user", content: trimmed }]);
+    const fileNames = pendingFiles.map(f => f.name).join(", ");
+    const userMsg = pendingFiles.length > 0 ? `${trimmed ? trimmed + "\n\n" : ""}[Attached: ${fileNames}]` : trimmed;
+    setMessages(prev => [...prev, { role: "user", content: userMsg }]);
     try {
-      const result = await sendMutation.mutateAsync({ message: trimmed, sessionId });
+      const attachmentInfo = pendingFiles.map(f => ({ fileName: f.name, fileType: f.type, url: f.url }));
+      const result = await sendMutation.mutateAsync({ message: trimmed || `[See attached files]`, sessionId, attachmentInfo });
       setMessages(prev => [...prev, { role: "assistant", content: result.message }]);
     } catch (err: any) {
       toast.error(err.message || "Failed to get response");
       setMessages(prev => prev.slice(0, -1));
     }
+    setPendingFiles([]);
     setIsLoading(false);
   };
 
@@ -170,14 +212,35 @@ export default function ChatPage() {
             </div>
           </ScrollArea>
 
+          {/* Pending files */}
+          {pendingFiles.length > 0 && (
+            <div className="border-t border-border/50 px-4 py-2">
+              <div className="max-w-3xl mx-auto flex flex-wrap gap-2">
+                {pendingFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-1.5 bg-accent/50 rounded-lg px-2.5 py-1.5 text-xs">
+                    {f.type.startsWith("image/") ? <Image className="w-3 h-3 text-primary" /> : f.type.includes("json") || f.type.includes("code") ? <FileCode className="w-3 h-3 text-primary" /> : <FileText className="w-3 h-3 text-primary" />}
+                    <span className="max-w-[120px] truncate">{f.name}</span>
+                    <button onClick={() => removePendingFile(i)} className="hover:text-destructive">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Input */}
           <div className="border-t border-border/50 p-4">
             <div className="max-w-3xl mx-auto flex gap-2">
+              <input ref={fileInputRef} type="file" multiple onChange={handleFileUpload} className="hidden" accept="image/*,.pdf,.txt,.json,.js,.ts,.tsx,.jsx,.py,.cs,.cpp,.c,.h,.rs,.go,.java,.html,.css,.md" />
+              <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="self-end h-[44px]">
+                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+              </Button>
               <Textarea
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                placeholder="Ask Nova anything..."
+                placeholder="Ask Nova anything... (attach files with the clip icon)"
                 className="min-h-[44px] max-h-[200px] resize-none"
                 rows={1}
               />

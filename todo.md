@@ -1,21 +1,36 @@
 # Nova AI - Project TODO
 
-- [ ] Database schema: groq_keys, chat_messages, secrets, chart_data, git_repos tables
-- [ ] Backend: Groq API streaming chat endpoint
-- [ ] Backend: API key validation (gsk_ prefix check)
-- [ ] Backend: Secret vault CRUD with AI context injection
-- [ ] Backend: Persistent chat memory (save/load per session)
-- [ ] Backend: Virtual PC terminal with SSE streaming
-- [ ] Backend: Git integration (configure remote, push)
-- [ ] Backend: Chart save/load
-- [ ] Backend: Project ZIP download
-- [ ] Frontend: Dark elegant theme
-- [ ] Frontend: API key gate
-- [ ] Frontend: Chat page with streaming (hooks before return)
-- [ ] Frontend: Vault page (hooks before return)
-- [ ] Frontend: Terminal page (hooks before return)
-- [ ] Frontend: Charts gallery page
-- [ ] Frontend: Git page
-- [ ] Frontend: Settings page with vault tab
-- [ ] Write vitest tests
-- [ ] Create checkpoint and deliver
+- [x] Database schema: groq_keys, chat_messages, secrets, chart_data, git_repos tables
+- [x] Backend: Groq API streaming chat endpoint
+- [x] Backend: API key validation (gsk_ prefix check)
+- [x] Backend: Secret vault CRUD with AI context injection
+- [x] Backend: Persistent chat memory (save/load per session)
+- [x] Backend: Virtual PC terminal with SSE streaming
+- [x] Backend: Git integration (configure remote, push)
+- [x] Backend: Chart save/load
+- [x] Backend: Project ZIP download
+- [x] Frontend: Dark elegant theme
+- [x] Frontend: API key gate
+- [x] Frontend: Chat page with streaming (hooks before return)
+- [x] Frontend: Vault page (hooks before return)
+- [x] Frontend: Terminal page (hooks before return)
+- [x] Frontend: Charts gallery page
+- [x] Frontend: Git page
+- [x] Frontend: Settings page with vault tab
+- [x] Write vitest tests
+- [x] Create checkpoint and deliver
+
+## V2 Upgrades
+
+- [x] Add database tables: custom_models, custom_tools, chat_attachments
+- [x] Login page with Manus OAuth (Google/GitHub available via Manus)
+- [ ] GitHub authorization flow (authorize GitHub directly from app)
+- [x] File/photo upload to chat (images, documents, code files)
+- [x] Custom models API configuration (add any OpenAI-compatible endpoint)
+- [x] Custom tools registration (user-defined AI tools)
+- [x] Code analysis mode (complex bug finding, C#/C++ expertise)
+- [x] 3D website generation capability (system prompt + expertise)
+- [x] Enhance system prompt for code expert mode
+- [x] Prepare deployable GitHub bundle (README, Dockerfile, env example)
+- [x] Write tests for new features
+- [x] Checkpoint and deliver

@@ -68,3 +68,46 @@ export const settings = mysqlTable("settings", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+export const customModels = mysqlTable("custom_models", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 128 }).notNull(),
+  provider: varchar("provider", { length: 64 }).default("openai").notNull(),
+  endpoint: varchar("endpoint", { length: 512 }).notNull(),
+  apiKey: varchar("apiKey", { length: 255 }),
+  modelName: varchar("modelName", { length: 128 }).notNull(),
+  isActive: mysqlEnum("isActive", ["true", "false"]).default("true").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const customTools = mysqlTable("custom_tools", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 128 }).notNull(),
+  description: mediumtext("description"),
+  toolType: varchar("toolType", { length: 32 }).default("webhook").notNull(),
+  endpoint: varchar("endpoint", { length: 512 }),
+  systemInstruction: mediumtext("systemInstruction"),
+  isActive: mysqlEnum("isActive", ["true", "false"]).default("true").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const chatAttachments = mysqlTable("chat_attachments", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  messageId: int("messageId"),
+  fileName: varchar("fileName", { length: 256 }).notNull(),
+  fileType: varchar("fileType", { length: 64 }).notNull(),
+  fileSize: int("fileSize"),
+  storageKey: varchar("storageKey", { length: 512 }).notNull(),
+  url: varchar("url", { length: 1024 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CustomModel = typeof customModels.$inferSelect;
+export type InsertCustomModel = typeof customModels.$inferInsert;
+export type CustomTool = typeof customTools.$inferSelect;
+export type InsertCustomTool = typeof customTools.$inferInsert;
+export type ChatAttachment = typeof chatAttachments.$inferSelect;
+export type InsertChatAttachment = typeof chatAttachments.$inferInsert;

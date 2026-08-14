@@ -11,6 +11,8 @@ import TerminalPage from "./pages/TerminalPage";
 import ChartsPage from "./pages/ChartsPage";
 import GitPage from "./pages/GitPage";
 import SettingsPage from "./pages/SettingsPage";
+import ModelsPage from "./pages/ModelsPage";
+import ToolsPage from "./pages/ToolsPage";
 
 function Router() {
   return (
@@ -22,6 +24,8 @@ function Router() {
       <Route path={"/charts"} component={ChartsPage} />
       <Route path={"/git"} component={GitPage} />
       <Route path={"/settings"} component={SettingsPage} />
+      <Route path={"/models"} component={ModelsPage} />
+      <Route path={"/tools"} component={ToolsPage} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

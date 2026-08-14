@@ -21,6 +21,14 @@ vi.mock("./db", () => ({
   deleteGitRepo: vi.fn(),
   getUserSettings: vi.fn(),
   updateUserSettings: vi.fn(),
+  getCustomModels: vi.fn(),
+  saveCustomModel: vi.fn(),
+  toggleCustomModel: vi.fn(),
+  deleteCustomModel: vi.fn(),
+  getCustomTools: vi.fn(),
+  saveCustomTool: vi.fn(),
+  deleteCustomTool: vi.fn(),
+  saveChatAttachment: vi.fn(),
 }));
 
 import * as db from "./db";
@@ -110,6 +118,50 @@ describe("vault operations", () => {
     vi.mocked(db.saveSecret).mockResolvedValue(undefined);
     const caller = appRouter.createCaller(createCtx(testUser));
     const result = await caller.vault.add({ name: "TEST", value: "secret123" });
+    expect(result).toEqual({ success: true });
+  });
+});
+
+describe("custom models operations", () => {
+  it("lists custom models", async () => {
+    vi.mocked(db.getCustomModels).mockResolvedValue([
+      { id: 1, name: "GPT-4o", endpoint: "https://api.openai.com/v1/chat/completions", isActive: "true" },
+    ]);
+    const caller = appRouter.createCaller(createCtx(testUser));
+    const result = await caller.models.list();
+    expect(result.models).toHaveLength(1);
+  });
+
+  it("adds a custom model", async () => {
+    vi.mocked(db.saveCustomModel).mockResolvedValue(undefined);
+    const caller = appRouter.createCaller(createCtx(testUser));
+    const result = await caller.models.add({
+      name: "GPT-4o",
+      endpoint: "https://api.openai.com/v1/chat/completions",
+      modelName: "gpt-4o",
+    });
+    expect(result).toEqual({ success: true });
+  });
+});
+
+describe("custom tools operations", () => {
+  it("lists custom tools", async () => {
+    vi.mocked(db.getCustomTools).mockResolvedValue([
+      { id: 1, name: "Code Reviewer", toolType: "system-instruction" },
+    ]);
+    const caller = appRouter.createCaller(createCtx(testUser));
+    const result = await caller.tools.list();
+    expect(result.tools).toHaveLength(1);
+  });
+
+  it("adds a custom tool", async () => {
+    vi.mocked(db.saveCustomTool).mockResolvedValue(undefined);
+    const caller = appRouter.createCaller(createCtx(testUser));
+    const result = await caller.tools.add({
+      name: "Security Scanner",
+      toolType: "code-analysis",
+      systemInstruction: "Analyze code for security vulnerabilities",
+    });
     expect(result).toEqual({ success: true });
   });
 });

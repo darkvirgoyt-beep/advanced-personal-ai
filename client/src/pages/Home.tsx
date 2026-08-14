@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings, Sparkles, Loader2, KeyRound } from "lucide-react";
+import { MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings, Sparkles, Loader2, KeyRound, Cpu, Wrench, Upload } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -16,7 +16,9 @@ const features = [
   { icon: Terminal, title: "Virtual PC", desc: "Run shell commands in the browser terminal" },
   { icon: BarChart3, title: "Chart Gallery", desc: "Save and browse data visualizations" },
   { icon: GitBranch, title: "Git Push", desc: "Push files directly to your repositories" },
-  { icon: Settings, title: "Full Control", desc: "Configure models, prompts, and integrations" },
+  { icon: Cpu, title: "Custom Models", desc: "Add any OpenAI-compatible API endpoint" },
+  { icon: Wrench, title: "Custom Tools", desc: "Register AI tools and instructions" },
+  { icon: Upload, title: "File Uploads", desc: "Send code, images, and documents" },
 ];
 
 export default function Home() {
@@ -68,9 +70,18 @@ export default function Home() {
               <br />
               Sign in to unlock the full experience.
             </p>
-            <Button size="lg" onClick={() => window.location.href = "/api/oauth/start"} className="text-base px-8">
-              Sign In with Manus
-            </Button>
+            <div className="flex flex-col gap-3">
+              <Button size="lg" onClick={() => window.location.href = "/api/oauth/start"} className="text-base px-8 w-full">
+                Sign In with Manus
+              </Button>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border/50" /></div>
+                <div className="relative flex justify-center text-xs"><span className="bg-background px-2 text-muted-foreground">or</span></div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Nova AI uses Manus OAuth for secure authentication. After signing in, add your Groq API key to activate.
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 mt-12">
