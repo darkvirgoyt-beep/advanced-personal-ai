@@ -1,0 +1,21 @@
+# Nova AI - Project TODO
+
+- [ ] Database schema: groq_keys, chat_messages, secrets, chart_data, git_repos tables
+- [ ] Backend: Groq API streaming chat endpoint
+- [ ] Backend: API key validation (gsk_ prefix check)
+- [ ] Backend: Secret vault CRUD with AI context injection
+- [ ] Backend: Persistent chat memory (save/load per session)
+- [ ] Backend: Virtual PC terminal with SSE streaming
+- [ ] Backend: Git integration (configure remote, push)
+- [ ] Backend: Chart save/load
+- [ ] Backend: Project ZIP download
+- [ ] Frontend: Dark elegant theme
+- [ ] Frontend: API key gate
+- [ ] Frontend: Chat page with streaming (hooks before return)
+- [ ] Frontend: Vault page (hooks before return)
+- [ ] Frontend: Terminal page (hooks before return)
+- [ ] Frontend: Charts gallery page
+- [ ] Frontend: Git page
+- [ ] Frontend: Settings page with vault tab
+- [ ] Write vitest tests
+- [ ] Create checkpoint and deliver
