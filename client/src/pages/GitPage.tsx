@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings, LogOut,
-  User, Plus, Trash2, Download, Loader2,
+  User, Plus, Trash2, Download, Loader2, Github,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useState } from "react";
@@ -131,6 +131,26 @@ export default function GitPage() {
           <header className="h-14 border-b border-border/50 flex items-center justify-between px-4">
             <h2 className="font-semibold text-sm">Git Repositories</h2>
             <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="bg-white text-black hover:bg-gray-100"
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/github/authorize");
+                    const data = await res.json();
+                    if (data.url) {
+                      window.location.href = data.url;
+                    } else {
+                      toast.error("GitHub client ID not configured. Set GITHUB_CLIENT_ID env var.");
+                    }
+                  } catch {
+                    toast.error("Failed to generate GitHub authorize URL");
+                  }
+                }}
+              >
+                <Github className="w-4 h-4 mr-1" /> Authorize GitHub
+              </Button>
               <Button variant="outline" size="sm" onClick={handleDownloadZip}>
                 <Download className="w-4 h-4 mr-1" /> Download ZIP
               </Button>

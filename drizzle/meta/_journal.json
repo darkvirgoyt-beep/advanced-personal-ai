@@ -15,6 +15,13 @@
       "when": 1786676530031,
       "tag": "0001_jittery_klaw",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786677077876,
+      "tag": "0002_vengeful_pandemic",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,9 @@ import multer from "multer";
 import path from "path";
 import { nanoid } from "nanoid";
 import { storagePut } from "../storage";
+import { sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/mysql2";
+import { githubOAuth } from "../../drizzle/schema";
 
 const execAsync = promisify(exec);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -115,5 +118,106 @@ export function registerCustomRoutes(app: Express) {
   app.post("/api/github/webhook", (req, res) => {
     // Accept webhook payloads from GitHub
     res.json({ status: "ok" });
+  });
+
+  // GitHub OAuth - Generate authorize URL
+  app.get("/api/github/authorize", async (req, res) => {
+    const clientId = process.env.GITHUB_CLIENT_ID || "";
+    const state = nanoid(32);
+    const expiry = Math.floor(Date.now() / 1000) + 600; // 10 min
+    
+    try {
+      if (process.env.DATABASE_URL) {
+        const db = drizzle(process.env.DATABASE_URL);
+        await db.insert(githubOAuth).values({
+          userId: 0, // Will be set on callback
+          state: state,
+          stateExpiry: expiry,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to store GitHub OAuth state", e);
+    }
+
+    const scope = "repo,user:email,read:user";
+    const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&state=${state}&scope=${scope}`;
+    res.json({ url });
+  });
+
+  // GitHub OAuth - Callback
+  app.get("/api/github/callback", async (req, res) => {
+    const { code, state } = req.query;
+    if (!code || !state) {
+      return res.redirect("/?error=github_auth_failed");
+    }
+
+    const clientId = process.env.GITHUB_CLIENT_ID || "";
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET || "";
+
+    try {
+      // Exchange code for access token
+      const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code: state as string }),
+      });
+      const tokenData = await tokenRes.json();
+      const accessToken = tokenData.access_token;
+      if (!accessToken) {
+        return res.redirect("/?error=github_auth_failed");
+      }
+
+      // Get user info
+      const userRes = await fetch("https://api.github.com/user", {
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/vnd.github+json" },
+      });
+      const ghUser = await userRes.json();
+
+      // Update DB
+      if (process.env.DATABASE_URL) {
+        const db = drizzle(process.env.DATABASE_URL);
+        await db.update(githubOAuth)
+          .set({
+            githubId: String(ghUser.id || ""),
+            githubLogin: ghUser.login || "",
+            accessToken: accessToken,
+            scope: tokenData.scope || "",
+          })
+          .where(sql`state = ${state}`);
+      }
+
+      res.redirect("/git?github_connected=true");
+    } catch {
+      res.redirect("/?error=github_auth_failed");
+    }
+  });
+
+  // GitHub OAuth - Status
+  app.get("/api/github/status", async (_req, res) => {
+    try {
+      if (process.env.DATABASE_URL) {
+        const db = drizzle(process.env.DATABASE_URL);
+        const rows = await db.select().from(githubOAuth).where(sql`accessToken IS NOT NULL`);
+        if (rows.length > 0 && rows[0]) {
+          return res.json({ connected: true, login: rows[0].githubLogin || "" });
+        }
+      }
+      res.json({ connected: false });
+    } catch {
+      res.json({ connected: false });
+    }
+  });
+
+  // GitHub OAuth - Disconnect
+  app.post("/api/github/disconnect", async (_req, res) => {
+    try {
+      if (process.env.DATABASE_URL) {
+        const db = drizzle(process.env.DATABASE_URL);
+        await db.update(githubOAuth).set({ accessToken: null, githubLogin: null }).where(sql`1=1`);
+      }
+      res.json({ success: true });
+    } catch {
+      res.json({ success: false });
+    }
   });
 }

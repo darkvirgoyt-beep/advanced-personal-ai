@@ -24,7 +24,7 @@
 
 - [x] Add database tables: custom_models, custom_tools, chat_attachments
 - [x] Login page with Manus OAuth (Google/GitHub available via Manus)
-- [ ] GitHub authorization flow (authorize GitHub directly from app)
+- [x] GitHub authorization flow (authorize GitHub directly from app — button added to Git page + login page)
 - [x] File/photo upload to chat (images, documents, code files)
 - [x] Custom models API configuration (add any OpenAI-compatible endpoint)
 - [x] Custom tools registration (user-defined AI tools)

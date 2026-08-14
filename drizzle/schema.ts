@@ -46,6 +46,19 @@ export const chartData = mysqlTable("chart_data", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+export const githubOAuth = mysqlTable("github_oauth", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  githubId: varchar("githubId", { length: 64 }),
+  githubLogin: varchar("githubLogin", { length: 128 }),
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  scope: varchar("scope", { length: 255 }),
+  state: varchar("state", { length: 64 }).notNull().unique(),
+  stateExpiry: int("stateExpiry"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export const gitRepos = mysqlTable("git_repos", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
