@@ -136,3 +136,20 @@
 - [x] Explain why a provider is absent from chat until it has a saved API key and is enabled
 - [x] Surface a clear chat-selector path to add a missing configured provider
 - [x] Add regression coverage for configured-provider eligibility and guidance
+
+## Portable Self-Hosting and VirgoYT Branding
+
+- [x] Audit the current portable source bundle, deployment configuration, and existing documentation
+- [x] Add a safe one-command local launcher for Termux, Linux, and macOS
+- [x] Add a Windows launcher and explain its prerequisites
+- [x] Document database, environment-variable, OAuth, GitHub, and AI-provider configuration for self-hosting
+- [x] Document third-party deployment options and clarify why a full-stack Nova AI cannot run directly on GitHub Pages
+- [x] Add VirgoYT authorship and project branding to the README and portable application materials
+- [x] Validate the portable launchers and update the source bundle
+- [x] Clarify supported user-authorized terminal and automation behavior without claiming unrestricted system access
+
+## Cross-Platform Launcher Validation
+
+- [x] Validate the Linux/macOS launcher prerequisite and first-run configuration behavior
+- [x] Validate the Termux launcher first-run environment generation with a safe simulated package environment
+- [x] Validate the Windows PowerShell launcher syntax and document platform prerequisites

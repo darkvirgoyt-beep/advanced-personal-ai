@@ -20,8 +20,25 @@ const execAsync = promisify(exec);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 const GOOGLE_STATE_COOKIE = "nova_google_oauth_state";
 const WORKSPACE_COOKIE = "nova_workspace";
-const GOOGLE_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/auth/google/callback";
-const GITHUB_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/download/project-zip?github=1";
+const MANUS_PUBLIC_URL = "https://novaai-r2evuk7k.manus.space";
+
+function publicOrigin(req: Request): string {
+  const configuredOrigin = process.env.PUBLIC_APP_URL?.trim().replace(/\/+$/, "");
+  if (configuredOrigin) return configuredOrigin;
+  const forwardedProtocol = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  return `${forwardedProtocol || req.protocol}://${req.get("host")}`;
+}
+
+function googleCallbackUrl(req: Request): string {
+  return `${publicOrigin(req)}/api/auth/google/callback`;
+}
+
+function githubCallbackUrl(req: Request): string {
+  const origin = publicOrigin(req);
+  return origin === MANUS_PUBLIC_URL
+    ? `${origin}/api/download/project-zip?github=1`
+    : `${origin}/api/nova-github`;
+}
 
 function readCookie(req: Request, name: string): string | undefined {
   return parseCookie(req.headers.cookie ?? "")[name];
@@ -76,7 +93,7 @@ export function registerCustomRoutes(app: Express) {
 
     const authorizeUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authorizeUrl.searchParams.set("client_id", clientId);
-    authorizeUrl.searchParams.set("redirect_uri", GOOGLE_CALLBACK_URL);
+    authorizeUrl.searchParams.set("redirect_uri", googleCallbackUrl(req));
     authorizeUrl.searchParams.set("response_type", "code");
     authorizeUrl.searchParams.set("scope", "openid email profile");
     authorizeUrl.searchParams.set("state", state);
@@ -102,7 +119,7 @@ export function registerCustomRoutes(app: Express) {
           code,
           client_id: process.env.GOOGLE_CLIENT_ID || "",
           client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
-          redirect_uri: GOOGLE_CALLBACK_URL,
+          redirect_uri: googleCallbackUrl(req),
           grant_type: "authorization_code",
         }),
       });
@@ -242,7 +259,7 @@ export function registerCustomRoutes(app: Express) {
         const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
           method: "POST",
           headers: { Accept: "application/json", "Content-Type": "application/json" },
-          body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: GITHUB_CALLBACK_URL }),
+          body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: githubCallbackUrl(req) }),
         });
         const tokenData = await tokenRes.json() as { access_token?: string; scope?: string };
         const accessToken = tokenData.access_token;
@@ -271,7 +288,7 @@ export function registerCustomRoutes(app: Express) {
       await db.createGitHubAuthorizationState(user.id, authorizationState, Math.floor(Date.now() / 1000) + 600);
       const authorizeUrl = new URL("https://github.com/login/oauth/authorize");
       authorizeUrl.searchParams.set("client_id", clientId);
-      authorizeUrl.searchParams.set("redirect_uri", GITHUB_CALLBACK_URL);
+      authorizeUrl.searchParams.set("redirect_uri", githubCallbackUrl(req));
       authorizeUrl.searchParams.set("state", authorizationState);
       authorizeUrl.searchParams.set("scope", "repo read:user user:email");
       return res.redirect(authorizeUrl.toString());
@@ -303,7 +320,7 @@ export function registerCustomRoutes(app: Express) {
   app.get(["/api/download/project-zip", "/api/download/nova-ai-source.zip"], (_req, res) => {
     const archive = new ZipArchive({ zlib: { level: 9 } });
     const projectRoot = process.cwd();
-    const sourceDirectories = ["client", "server", "shared", "drizzle"];
+    const sourceDirectories = ["client", "server", "shared", "drizzle", "scripts", "config"];
     const sourceFiles = [
       "ENVIRONMENT.md",
       ".gitignore",
@@ -388,7 +405,7 @@ export function registerCustomRoutes(app: Express) {
         const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
           method: "POST",
           headers: { Accept: "application/json", "Content-Type": "application/json" },
-          body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: GITHUB_CALLBACK_URL }),
+          body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: githubCallbackUrl(req) }),
         });
         const tokenData = await tokenRes.json() as { access_token?: string; scope?: string };
         const accessToken = tokenData.access_token;
@@ -422,7 +439,7 @@ export function registerCustomRoutes(app: Express) {
 
       const authorizeUrl = new URL("https://github.com/login/oauth/authorize");
       authorizeUrl.searchParams.set("client_id", clientId);
-      authorizeUrl.searchParams.set("redirect_uri", GITHUB_CALLBACK_URL);
+      authorizeUrl.searchParams.set("redirect_uri", githubCallbackUrl(req));
       authorizeUrl.searchParams.set("state", authorizationState);
       authorizeUrl.searchParams.set("scope", "repo read:user user:email");
       return res.redirect(authorizeUrl.toString());

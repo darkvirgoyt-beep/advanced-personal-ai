@@ -1,4 +1,4 @@
-# Nova AI Deployment Checklist
+# Nova AI Deployment Checklist — VirgoYT Edition
 
 Use this checklist after extracting the source ZIP or pushing the project to GitHub.
 
@@ -9,7 +9,7 @@ Use this checklist after extracting the source ZIP or pushing the project to Git
 | 3 | Deploy with the included `Dockerfile` on a Node/Docker-capable host. Do not use GitHub Pages for this full-stack application. |
 | 4 | Add environment variables listed in [`ENVIRONMENT.md`](./ENVIRONMENT.md) in the hosting dashboard. Use encrypted secrets rather than repository files. |
 | 5 | Run the Drizzle database migration against the production database. |
-| 6 | Configure OAuth callback URLs for the deployed domain if GitHub OAuth or the supplied OAuth integration is enabled. |
+| 6 | Set `PUBLIC_APP_URL` to the deployed HTTPS domain. Configure `https://YOUR_DOMAIN/api/auth/google/callback` for Google and `https://YOUR_DOMAIN/api/nova-github` for GitHub if those connections are enabled. |
 | 7 | Open the deployed URL, create/sign in to the workspace, and enter a Groq API key through the API-key gate. |
 
 ## Minimum production variables
@@ -24,3 +24,5 @@ PORT=3000
 ## Important hosting consideration
 
 The included terminal functionality can execute commands on the host. Only enable this application in an environment you control. For a public deployment, replace the terminal with a sandboxed task runner before allowing other people to sign in.
+
+For independent hosting, set `STORAGE_MODE=local` only if the host provides persistent disk or a mounted volume. Stateless hosts otherwise need an S3-compatible storage replacement.

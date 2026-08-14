@@ -13,16 +13,16 @@ services:
   db:
     image: mysql:8.4
     environment:
-      MYSQL_DATABASE: nova_ai
-      MYSQL_USER: nova_user
-      MYSQL_PASSWORD: replace-with-a-strong-password
-      MYSQL_ROOT_PASSWORD: replace-with-another-strong-password
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nova_ai}
+      MYSQL_USER: ${MYSQL_USER:-nova_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me-before-production}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-root-password-before-production}
     ports:
       - "3306:3306"
     volumes:
       - nova_ai_mysql:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-preplace-with-another-strong-password"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
       timeout: 5s
       retries: 12

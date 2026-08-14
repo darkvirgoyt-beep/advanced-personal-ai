@@ -2,7 +2,17 @@
 // Uploads via Forge Server presigned URL to S3 (PUT direct).
 // Downloads return /manus-storage/{key} paths served via 307 redirect.
 
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
 import { ENV } from "./_core/env";
+
+export function usesLocalStorage(): boolean {
+  return process.env.STORAGE_MODE === "local";
+}
+
+function localStorageRoot(): string {
+  return path.resolve(process.env.LOCAL_STORAGE_DIR || path.join(process.cwd(), "data", "uploads"));
+}
 
 function getForgeConfig() {
   const forgeUrl = ENV.forgeApiUrl;
@@ -18,7 +28,18 @@ function getForgeConfig() {
 }
 
 function normalizeKey(relKey: string): string {
-  return relKey.replace(/^\/+/, "");
+  const normalized = path.posix.normalize(relKey.replace(/\\/g, "/").replace(/^\/+/, ""));
+  if (!normalized || normalized === "." || normalized.startsWith("../") || normalized.includes("/../")) {
+    throw new Error("Invalid storage key");
+  }
+  return normalized;
+}
+
+export function getLocalStorageFilePath(relKey: string): string {
+  const root = localStorageRoot();
+  const filePath = path.resolve(root, normalizeKey(relKey));
+  if (!filePath.startsWith(`${root}${path.sep}`)) throw new Error("Invalid storage path");
+  return filePath;
 }
 
 function appendHashSuffix(relKey: string): string {
@@ -33,8 +54,16 @@ export async function storagePut(
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
 ): Promise<{ key: string; url: string }> {
-  const { forgeUrl, forgeKey } = getForgeConfig();
   const key = appendHashSuffix(normalizeKey(relKey));
+
+  if (usesLocalStorage()) {
+    const destination = getLocalStorageFilePath(key);
+    await mkdir(path.dirname(destination), { recursive: true });
+    await writeFile(destination, data);
+    return { key, url: `/manus-storage/${key}` };
+  }
+
+  const { forgeUrl, forgeKey } = getForgeConfig();
 
   // 1. Get presigned PUT URL from Forge
   const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");
@@ -77,6 +106,7 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
 }
 
 export async function storageGetSignedUrl(relKey: string): Promise<string> {
+  if (usesLocalStorage()) return `/manus-storage/${normalizeKey(relKey)}`;
   const { forgeUrl, forgeKey } = getForgeConfig();
   const key = normalizeKey(relKey);
 
