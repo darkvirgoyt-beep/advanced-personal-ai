@@ -3,7 +3,6 @@ FROM node:22-alpine
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
-COPY patches ./patches
 RUN corepack enable && pnpm install --frozen-lockfile
 
 COPY . .
