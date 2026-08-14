@@ -108,3 +108,10 @@
 - [x] Load and display supported Kie AI models for selection
 - [x] Route chat requests through the selected Kie AI model when it is active
 - [x] Cover Kie AI configuration, model selection, and error behavior with tests
+
+## Neutron 3 Ultra Provider
+
+- [x] Verify the documented OpenRouter-compatible Neutron 3 Ultra model identifier and endpoint
+- [x] Add a secure Neutron 3 Ultra preset using the existing per-workspace provider key controls
+- [x] Allow Neutron 3 Ultra selection in Settings and route chat through it
+- [x] Test the Neutron provider preset and selected-model routing

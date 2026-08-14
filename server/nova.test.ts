@@ -159,6 +159,24 @@ describe("chat operations", () => {
     }));
   });
 
+  it("routes a selected OpenRouter Neutron 3 Ultra model through the documented chat endpoint", async () => {
+    vi.mocked(db.getUserSettings).mockResolvedValue({ model: "custom:8", systemPrompt: null });
+    vi.mocked(db.getActiveGroqKey).mockResolvedValue(undefined);
+    vi.mocked(db.getActiveCustomModels).mockResolvedValue([
+      { id: 8, name: "OpenRouter · NVIDIA Nemotron 3 Ultra", provider: "openrouter", endpoint: "https://openrouter.ai/api/v1/chat/completions", apiKey: "openrouter-secret-key", modelName: "nvidia/nemotron-3-ultra-550b-a55b", isActive: "true" },
+    ]);
+    vi.mocked(db.saveChatMessage).mockResolvedValue(undefined);
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: "Neutron response" } }] }) }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.chat.send({ message: "Solve this coding task", sessionId: "neutron-chat" })).resolves.toEqual({ message: "Neutron response" });
+    expect(fetchMock).toHaveBeenCalledWith("https://openrouter.ai/api/v1/chat/completions", expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: "Bearer openrouter-secret-key" }),
+      body: expect.stringContaining("nvidia/nemotron-3-ultra-550b-a55b"),
+    }));
+  });
+
   it("adds selected repository context without exposing the GitHub OAuth token to the model prompt", async () => {
     vi.mocked(db.getUserSettings).mockResolvedValue(null);
     vi.mocked(db.getActiveGroqKey).mockResolvedValue("gsk_test1234567890abcdefghijklmnop");
@@ -220,6 +238,15 @@ describe("vault operations", () => {
 });
 
 describe("custom models operations", () => {
+  it("publishes the documented OpenRouter Neutron 3 Ultra preset without any user key", async () => {
+    const caller = appRouter.createCaller(createCtx(testUser));
+    const result = await caller.models.openRouterChatPresets();
+    expect(result.presets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ modelName: "nvidia/nemotron-3-ultra-550b-a55b", endpoint: "https://openrouter.ai/api/v1/chat/completions" }),
+    ]));
+    expect(JSON.stringify(result)).not.toContain("key");
+  });
+
   it("publishes documented Kie AI chat-model presets without any user key", async () => {
     const caller = appRouter.createCaller(createCtx(testUser));
     const result = await caller.models.kieChatPresets();

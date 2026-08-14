@@ -53,6 +53,7 @@ export default function ModelsPage() {
   const updateKeyMutation = trpc.models.updateKey.useMutation();
   const clearKeyMutation = trpc.models.clearKey.useMutation();
   const kiePresetsQuery = trpc.models.kieChatPresets.useQuery(undefined, { enabled: !!user });
+  const openRouterPresetsQuery = trpc.models.openRouterChatPresets.useQuery(undefined, { enabled: !!user });
   const utils = trpc.useUtils();
 
   useEffect(() => {}, []);
@@ -130,6 +131,14 @@ export default function ModelsPage() {
     setShowAdd(true);
   };
 
+  const useOpenRouterPreset = (preset: { name: string; modelName: string; endpoint: string }) => {
+    setName(`OpenRouter · ${preset.name}`);
+    setProvider("openrouter");
+    setEndpoint(preset.endpoint);
+    setModelName(preset.modelName);
+    setShowAdd(true);
+  };
+
   return (
     <SidebarProvider>
       <div className="flex h-screen bg-background">
@@ -202,6 +211,25 @@ export default function ModelsPage() {
                 </div>
               </Card>
 
+              <Card className="border-primary/20 bg-primary/5 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">OpenRouter chat models</p>
+                    <p className="mt-1 max-w-xl text-xs text-muted-foreground">Configure NVIDIA Nemotron 3 Ultra with an OpenRouter key, then select it in Settings. The key is saved only in your workspace and is never returned to the browser.</p>
+                  </div>
+                  <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">Manage OpenRouter keys</a>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {openRouterPresetsQuery.data?.presets.map(preset => (
+                    <div key={preset.id} className="rounded-lg border border-border/60 bg-background/70 p-3">
+                      <p className="text-sm font-medium">{preset.name}</p>
+                      <p className="mt-1 min-h-8 text-xs text-muted-foreground">{preset.description}</p>
+                      <Button variant="outline" size="sm" className="mt-3 h-8 text-xs" onClick={() => useOpenRouterPreset(preset)}>Configure</Button>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
               {showAdd && (
                 <Card className="p-4 space-y-3">
                   <div className="space-y-1.5">
@@ -219,11 +247,11 @@ export default function ModelsPage() {
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>{provider === "kie-ai" ? "Kie AI Endpoint" : "API Endpoint (OpenAI-compatible)"}</Label>
+                    <Label>{provider === "kie-ai" ? "Kie AI Endpoint" : provider === "openrouter" ? "OpenRouter Endpoint" : "API Endpoint (OpenAI-compatible)"}</Label>
                     <Input value={endpoint} onChange={e => setEndpoint(e.target.value)} placeholder="https://api.openai.com/v1/chat/completions" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>{provider === "kie-ai" ? "Kie AI API Key" : "API Key (optional)"}</Label>
+                    <Label>{provider === "kie-ai" ? "Kie AI API Key" : provider === "openrouter" ? "OpenRouter API Key" : "API Key (optional)"}</Label>
                     <div className="relative">
                       <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." className="pl-10" />
@@ -249,7 +277,7 @@ export default function ModelsPage() {
                 <Card className="p-8 text-center">
                   <Cpu className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
                   <p className="text-muted-foreground text-sm">No custom models yet.</p>
-                  <p className="text-muted-foreground text-xs mt-1">Add an OpenAI-compatible endpoint or choose a Kie AI chat model above.</p>
+                  <p className="text-muted-foreground text-xs mt-1">Add an OpenAI-compatible endpoint or choose a Kie AI or OpenRouter chat model above.</p>
                   <Button variant="outline" size="sm" className="mt-3" onClick={() => setShowAdd(true)}>
                     <Plus className="w-3 h-3 mr-1" /> Add Your First Model
                   </Button>
@@ -303,7 +331,7 @@ export default function ModelsPage() {
 
               <Card className="p-4 bg-accent/30 border-primary/20">
                 <p className="text-xs text-muted-foreground">
-                  <strong className="text-foreground">How it works:</strong> Add OpenAI-compatible chat endpoints or Kie AI chat presets here, then choose the active model in Settings. The API key is stored securely and used only by the server when sending requests to that provider.
+                  <strong className="text-foreground">How it works:</strong> Add OpenAI-compatible chat endpoints, Kie AI presets, or OpenRouter presets here, then choose the active model in Settings. The API key is stored securely and used only by the server when sending requests to that provider.
                 </p>
               </Card>
             </div>

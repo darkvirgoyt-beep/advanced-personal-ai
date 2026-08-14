@@ -51,6 +51,16 @@ const KIE_CHAT_PRESETS = [
   },
 ] as const;
 
+const OPENROUTER_CHAT_PRESETS = [
+  {
+    id: "nvidia-nemotron-3-ultra-550b-a55b",
+    name: "NVIDIA Nemotron 3 Ultra",
+    modelName: "nvidia/nemotron-3-ultra-550b-a55b",
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    description: "NVIDIA open frontier-reasoning and orchestration model for complex coding, planning, and tool-use work.",
+  },
+] as const;
+
 async function callGroq(apiKey: string, model: string, messages: any[]) {
   const res = await fetch(GROQ_URL, {
     method: "POST",
@@ -444,6 +454,7 @@ export const appRouter = router({
   // ── Custom Models ──
   models: router({
     kieChatPresets: protectedProcedure.query(() => ({ presets: KIE_CHAT_PRESETS })),
+    openRouterChatPresets: protectedProcedure.query(() => ({ presets: OPENROUTER_CHAT_PRESETS })),
     list: protectedProcedure.query(async ({ ctx }) => {
       const modelsList = await db.getCustomModels(ctx.user!.id);
       // Never return stored API keys. The UI receives only a status flag.

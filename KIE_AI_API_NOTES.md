@@ -16,3 +16,12 @@ Implementation choice: retain Nova's existing custom-model support for generic O
 ## Verification note
 
 The sandbox preview capture on 2026-08-14 loaded only the dark application shell because it did not carry a browser workspace session. Browser-console logs showed no client exception, and the production build plus router-level tests validate the controls and routes. Repository selection and Kie configuration must also be manually exercised from an authenticated Nova workspace after deployment.
+
+## OpenRouter Neutron provider note
+
+Official OpenRouter sources checked on 2026-08-14 identify the requested model as **NVIDIA Nemotron 3 Ultra**, with model identifier `nvidia/nemotron-3-ultra-550b-a55b`. It uses OpenRouter's OpenAI-compatible chat-completions endpoint: `https://openrouter.ai/api/v1/chat/completions`. Nova should expose this as a per-workspace provider preset and use the existing encrypted custom-model key field; the API credential supplied in conversation must not be committed to source code, project notes, or a shared project environment.
+
+Sources:
+
+- https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b
+- https://openrouter.ai/docs/api/api-reference/chat/create-a-chat-completion
