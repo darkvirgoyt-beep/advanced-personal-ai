@@ -59,4 +59,4 @@
 - [x] Configure Google OAuth credentials and specify the authorized callback URL
 - [x] Add an optional Google account sign-in control without blocking direct Groq access
 - [x] Define and implement migration behavior for anonymous device workspaces after Google sign-in
-- [ ] User: add the production callback URL in Google Cloud Console before first Google sign-in
+- [x] User: add the production callback URL in Google Cloud Console before first Google sign-in
