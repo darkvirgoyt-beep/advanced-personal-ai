@@ -29,6 +29,24 @@ export const chatMessages = mysqlTable("chat_messages", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+/** Workspace-scoped conversation metadata. Message bodies remain in chat_messages. */
+export const chatFolders = mysqlTable("chat_folders", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 96 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => [uniqueIndex("chat_folders_user_name_unique").on(table.userId, table.name)]);
+
+export const chatConversations = mysqlTable("chat_conversations", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  sessionId: varchar("sessionId", { length: 64 }).notNull(),
+  title: varchar("title", { length: 160 }).notNull(),
+  folderId: int("folderId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => [uniqueIndex("chat_conversations_user_session_unique").on(table.userId, table.sessionId)]);
+
 export const secrets = mysqlTable("secrets", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

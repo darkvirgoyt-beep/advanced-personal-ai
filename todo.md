@@ -187,7 +187,12 @@
 - [x] Add behavioral coverage that Profile navigation resolves to Settings from desktop and mobile controls
 - [x] Add explicit AI operating modes for fast, reasoning, coding, creative, learning, gaming, research, and productivity workflows
 - [x] Add user-controlled memory settings through the chat operating controls
-- [ ] Add conversation search and organized conversation folders
+- [x] Add conversation search and organized conversation folders
+- [x] Search conversation history content in addition to generated titles
+- [x] Derive conversation metadata for existing saved chat sessions so prior chats appear in the organizer
+- [x] Re-verify search, existing conversations, empty state, and folder assignment behavior
+- [x] Refresh the conversation organizer after send, clear, and new-chat actions
+- [x] Add behavioral coverage for empty state, legacy visibility, and folder assignment UI data flow
 - [ ] Extend file and creator workflows with image understanding, image-generation entry points, and voice-ready controls
 - [ ] Create developer-facing API documentation, playground foundations, assistant concepts, and workflow-builder entry points
 - [ ] Add export/import conversation foundations and clearer privacy/security controls

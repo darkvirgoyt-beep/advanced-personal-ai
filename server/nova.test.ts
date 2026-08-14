@@ -10,6 +10,14 @@ vi.mock("./db", () => ({
   getChatHistory: vi.fn(),
   saveChatMessage: vi.fn(),
   clearChatHistory: vi.fn(),
+  deleteChatConversation: vi.fn(),
+  ensureChatConversation: vi.fn(),
+  listChatConversations: vi.fn(),
+  searchChatConversationSessionIds: vi.fn(),
+  listChatFolders: vi.fn(),
+  createChatFolder: vi.fn(),
+  deleteChatFolder: vi.fn(),
+  updateChatConversationFolder: vi.fn(),
   getAllSecrets: vi.fn(),
   getAllSecretValues: vi.fn(),
   saveSecret: vi.fn(),
@@ -51,6 +59,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
   vi.mocked(db.getChatHistory).mockResolvedValue([]);
+  vi.mocked(db.listChatConversations).mockResolvedValue([]);
+  vi.mocked(db.searchChatConversationSessionIds).mockResolvedValue([]);
+  vi.mocked(db.listChatFolders).mockResolvedValue([]);
   vi.mocked(db.getAllSecretValues).mockResolvedValue([]);
   vi.mocked(db.getCustomTools).mockResolvedValue([]);
   vi.mocked(db.getActiveCustomModels).mockResolvedValue([]);
@@ -143,9 +154,46 @@ describe("chat operations", () => {
 
   it("clears chat history", async () => {
     vi.mocked(db.clearChatHistory).mockResolvedValue(undefined);
+    vi.mocked(db.deleteChatConversation).mockResolvedValue(undefined);
     const caller = appRouter.createCaller(createCtx(testUser));
     const result = await caller.chat.clear({ sessionId: "test-session" });
     expect(result).toEqual({ success: true });
+    expect(db.deleteChatConversation).toHaveBeenCalledWith(1, "test-session");
+  });
+
+  it("searches only the current workspace's conversation titles", async () => {
+    vi.mocked(db.listChatConversations).mockResolvedValue([
+      { sessionId: "design", title: "Design a portfolio", folderId: null, updatedAt: new Date() },
+      { sessionId: "code", title: "Fix TypeScript build", folderId: 2, updatedAt: new Date() },
+    ]);
+    vi.mocked(db.searchChatConversationSessionIds).mockResolvedValue(["design"]);
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.chat.conversations({ search: "portfolio" })).resolves.toMatchObject({
+      conversations: [{ sessionId: "design", title: "Design a portfolio" }],
+    });
+    expect(db.listChatConversations).toHaveBeenCalledWith(1);
+    expect(db.searchChatConversationSessionIds).toHaveBeenCalledWith(1, "portfolio");
+  });
+
+  it("finds a conversation when the query matches saved content rather than its title", async () => {
+    vi.mocked(db.listChatConversations).mockResolvedValue([
+      { sessionId: "design", title: "Project planning", folderId: null, updatedAt: new Date() },
+    ]);
+    vi.mocked(db.searchChatConversationSessionIds).mockResolvedValue(["design"]);
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.chat.conversations({ search: "wireframe" })).resolves.toMatchObject({
+      conversations: [{ sessionId: "design", title: "Project planning" }],
+    });
+  });
+
+  it("creates folders and moves conversations within the current workspace", async () => {
+    vi.mocked(db.createChatFolder).mockResolvedValue(undefined);
+    vi.mocked(db.updateChatConversationFolder).mockResolvedValue(undefined);
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.chat.createFolder({ name: "Client work" })).resolves.toEqual({ success: true });
+    await expect(caller.chat.moveConversation({ sessionId: "design", folderId: 7 })).resolves.toEqual({ success: true });
+    expect(db.createChatFolder).toHaveBeenCalledWith(1, "Client work");
+    expect(db.updateChatConversationFolder).toHaveBeenCalledWith(1, "design", 7);
   });
 
   it("throws when no API key configured", async () => {

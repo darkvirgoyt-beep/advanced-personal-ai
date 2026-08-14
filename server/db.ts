@@ -1,9 +1,10 @@
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser, users, groqKeys, chatMessages, secrets,
   chartData, gitRepos, settings,
-  customModels, customTools, chatAttachments, githubOAuth, devProjects, devProjectFiles
+  customModels, customTools, chatAttachments, githubOAuth, devProjects, devProjectFiles,
+  chatFolders, chatConversations
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -201,6 +202,95 @@ export async function clearChatHistory(userId: number, sessionId: string): Promi
   if (!db) throw new Error("DB unavailable");
   await db.delete(chatMessages)
     .where(and(eq(chatMessages.userId, userId), eq(chatMessages.sessionId, sessionId)));
+}
+
+export async function deleteChatConversation(userId: number, sessionId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.delete(chatConversations)
+    .where(and(eq(chatConversations.userId, userId), eq(chatConversations.sessionId, sessionId)));
+}
+
+function conversationTitleFromMessage(message: string): string {
+  const normalized = message.replace(/\s+/g, " ").trim();
+  return normalized.slice(0, 157) + (normalized.length > 157 ? "…" : "") || "New conversation";
+}
+
+export async function ensureChatConversation(userId: number, sessionId: string, firstMessage: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.insert(chatConversations).values({
+    userId,
+    sessionId,
+    title: conversationTitleFromMessage(firstMessage),
+  }).onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
+}
+
+export async function listChatConversations(userId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  // Legacy sessions predate the metadata table. Derive a compact record from each
+  // existing chat so saved conversations are discoverable without data loss.
+  const known = await db.select({ sessionId: chatConversations.sessionId }).from(chatConversations)
+    .where(eq(chatConversations.userId, userId));
+  const knownSessionIds = new Set(known.map(row => row.sessionId));
+  const legacySessions = await db.select({ sessionId: chatMessages.sessionId }).from(chatMessages)
+    .where(eq(chatMessages.userId, userId)).groupBy(chatMessages.sessionId);
+  for (const legacy of legacySessions) {
+    if (knownSessionIds.has(legacy.sessionId)) continue;
+    const firstMessage = await db.select({ content: chatMessages.content }).from(chatMessages)
+      .where(and(eq(chatMessages.userId, userId), eq(chatMessages.sessionId, legacy.sessionId)))
+      .orderBy(chatMessages.id).limit(1);
+    await db.insert(chatConversations).values({
+      userId,
+      sessionId: legacy.sessionId,
+      title: conversationTitleFromMessage(firstMessage[0]?.content || "New conversation"),
+    }).onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
+  }
+  return db.select().from(chatConversations)
+    .where(eq(chatConversations.userId, userId))
+    .orderBy(desc(chatConversations.updatedAt));
+}
+
+export async function searchChatConversationSessionIds(userId: number, query: string): Promise<string[]> {
+  const db = await getDb();
+  if (!db || !query.trim()) return [];
+  const matches = await db.select({ sessionId: chatMessages.sessionId }).from(chatMessages)
+    .where(and(eq(chatMessages.userId, userId), like(chatMessages.content, `%${query.trim()}%`)))
+    .groupBy(chatMessages.sessionId);
+  return matches.map(match => match.sessionId);
+}
+
+export async function updateChatConversationFolder(userId: number, sessionId: string, folderId: number | null): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  if (folderId !== null) {
+    const folder = await db.select({ id: chatFolders.id }).from(chatFolders)
+      .where(and(eq(chatFolders.id, folderId), eq(chatFolders.userId, userId))).limit(1);
+    if (!folder[0]) throw new Error("Folder not found");
+  }
+  await db.update(chatConversations).set({ folderId, updatedAt: new Date() })
+    .where(and(eq(chatConversations.userId, userId), eq(chatConversations.sessionId, sessionId)));
+}
+
+export async function listChatFolders(userId: number): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(chatFolders).where(eq(chatFolders.userId, userId)).orderBy(desc(chatFolders.createdAt));
+}
+
+export async function createChatFolder(userId: number, name: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.insert(chatFolders).values({ userId, name: name.trim() });
+}
+
+export async function deleteChatFolder(userId: number, folderId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(chatConversations).set({ folderId: null })
+    .where(and(eq(chatConversations.userId, userId), eq(chatConversations.folderId, folderId)));
+  await db.delete(chatFolders).where(and(eq(chatFolders.userId, userId), eq(chatFolders.id, folderId)));
 }
 
 // ── Secrets ──

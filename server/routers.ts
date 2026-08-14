@@ -432,7 +432,8 @@ export const appRouter = router({
           }
         }
 
-        // Save messages
+        // Persist conversation metadata and messages only inside the caller's workspace.
+        await db.ensureChatConversation(userId, input.sessionId, input.message);
         await db.saveChatMessage(userId, input.sessionId, "user", userContent);
         await db.saveChatMessage(userId, input.sessionId, "assistant", response);
 
@@ -448,6 +449,46 @@ export const appRouter = router({
       .input(z.object({ sessionId: z.string().min(1) }))
       .mutation(async ({ ctx, input }) => {
         await db.clearChatHistory(ctx.user!.id, input.sessionId);
+        await db.deleteChatConversation(ctx.user!.id, input.sessionId);
+        return { success: true };
+      }),
+    conversations: protectedProcedure
+      .input(z.object({ search: z.string().max(160).optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const query = input?.search?.trim().toLowerCase();
+        const conversations = await db.listChatConversations(ctx.user!.id);
+        const contentMatches = new Set(query ? await db.searchChatConversationSessionIds(ctx.user!.id, query) : []);
+        return {
+          conversations: conversations
+            .filter(conversation => !query || conversation.title.toLowerCase().includes(query) || contentMatches.has(conversation.sessionId))
+            .map(conversation => ({
+              sessionId: conversation.sessionId,
+              title: conversation.title,
+              folderId: conversation.folderId,
+              updatedAt: conversation.updatedAt,
+            })),
+        };
+      }),
+    folders: protectedProcedure.query(async ({ ctx }) => {
+      const folders = await db.listChatFolders(ctx.user!.id);
+      return { folders: folders.map(folder => ({ id: folder.id, name: folder.name, createdAt: folder.createdAt })) };
+    }),
+    createFolder: protectedProcedure
+      .input(z.object({ name: z.string().trim().min(1).max(96) }))
+      .mutation(async ({ ctx, input }) => {
+        await db.createChatFolder(ctx.user!.id, input.name);
+        return { success: true };
+      }),
+    deleteFolder: protectedProcedure
+      .input(z.object({ folderId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.deleteChatFolder(ctx.user!.id, input.folderId);
+        return { success: true };
+      }),
+    moveConversation: protectedProcedure
+      .input(z.object({ sessionId: z.string().min(1), folderId: z.number().int().positive().nullable() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.updateChatConversationFolder(ctx.user!.id, input.sessionId, input.folderId);
         return { success: true };
       }),
   }),

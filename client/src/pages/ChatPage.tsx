@@ -10,10 +10,10 @@ import {
 import {
   MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings,
   Send, Sparkles, Loader2, Trash2, Paperclip, X, Image, FileText, FileCode, LogIn,
-  Cpu, Wrench, Github, FolderGit2, ChevronDown, Code2, BrainCircuit, Zap, Braces, Wand2, GraduationCap, Gamepad2, Search, ListChecks,
+  Cpu, Wrench, Github, FolderGit2, ChevronDown, Code2, BrainCircuit, Zap, Braces, Wand2, GraduationCap, Gamepad2, Search, ListChecks, Plus, FolderPlus, History,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Streamdown } from "streamdown";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buildChatModelOptions, DEFAULT_CHAT_MODEL, getConfiguredProviderGuidance, type ConfiguredChatModel } from "@/lib/chatModelOptions";
 import { resolveComposerSecretAction } from "@/lib/privateSecretIntent";
+import { filterOrganizableConversations, parseConversationFolderValue, shouldShowConversationEmptyState } from "@/lib/conversationOrganizer";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -94,7 +95,7 @@ type AiModeValue = (typeof AI_MODES)[number]["value"];
 export default function ChatPage() {
   const { user, loading } = useAuth();
   const [, navigate] = useLocation();
-  const [sessionId] = useState(() => localStorage.getItem("nova-session") || nanoid(16));
+  const [sessionId, setSessionId] = useState(() => localStorage.getItem("nova-session") || nanoid(16));
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -111,10 +112,18 @@ export default function ChatPage() {
   const [secretName, setSecretName] = useState("");
   const [secretValue, setSecretValue] = useState("");
   const [secretRequest, setSecretRequest] = useState("");
+  const [conversationSearch, setConversationSearch] = useState("");
+  const [folderDraft, setFolderDraft] = useState("");
+  const [folderFilter, setFolderFilter] = useState<number | "all" | "unfiled">("all");
 
   // All hooks before any early return
   const historyQuery = trpc.chat.history.useQuery({ sessionId }, { enabled: !loading });
+  const conversationSearchInput = useMemo(() => ({ search: conversationSearch.trim() || undefined }), [conversationSearch]);
+  const conversationsQuery = trpc.chat.conversations.useQuery(conversationSearchInput, { enabled: !loading });
+  const foldersQuery = trpc.chat.folders.useQuery(undefined, { enabled: !loading });
   const clearMutation = trpc.chat.clear.useMutation();
+  const createFolderMutation = trpc.chat.createFolder.useMutation();
+  const moveConversationMutation = trpc.chat.moveConversation.useMutation();
   const sendMutation = trpc.chat.send.useMutation();
   const githubReposQuery = trpc.git.listGitHubRepos.useQuery(undefined, { enabled: !loading, staleTime: 5 * 60 * 1000 });
   const settingsQuery = trpc.settings.get.useQuery(undefined, { enabled: !loading });
@@ -190,6 +199,9 @@ export default function ChatPage() {
 
   const availableRepositories = (githubReposQuery.data?.repos || []) as GitHubRepository[];
   const selectedRepositories = availableRepositories.filter(repo => selectedRepoFullNames.includes(repo.fullName));
+  const allConversations = conversationsQuery.data?.conversations || [];
+  const visibleConversations = filterOrganizableConversations(allConversations, folderFilter);
+  const showConversationEmptyState = shouldShowConversationEmptyState(conversationsQuery.isLoading, visibleConversations.length);
   const chatModelOptions = buildChatModelOptions({
     hasGroqKey: groqCheckQuery.data?.has || false,
     models: (customModelsQuery.data?.models || []) as ConfiguredChatModel[],
@@ -256,6 +268,7 @@ export default function ChatPage() {
         activeProjectPath: activeProject?.path,
       });
       setMessages(prev => [...prev, { role: "assistant", content: result.message }]);
+      await utils.chat.conversations.invalidate();
     } catch (err: any) {
       toast.error(err.message || "Failed to get response");
       setMessages(prev => prev.slice(0, -1));
@@ -267,9 +280,48 @@ export default function ChatPage() {
   const handleClear = async () => {
     try {
       await clearMutation.mutateAsync({ sessionId });
-      setMessages([]);
+      startNewConversation();
+      await utils.chat.conversations.invalidate();
       toast.success("Chat cleared");
     } catch { toast.error("Failed to clear"); }
+  };
+
+  const startNewConversation = () => {
+    setSessionId(nanoid(16));
+    setMessages([]);
+    setPendingFiles([]);
+    setInput("");
+    void utils.chat.conversations.invalidate();
+  };
+
+  const openConversation = (nextSessionId: string) => {
+    if (nextSessionId === sessionId) return;
+    setSessionId(nextSessionId);
+    setMessages([]);
+    setPendingFiles([]);
+  };
+
+  const addFolder = async () => {
+    const name = folderDraft.trim();
+    if (!name) return;
+    try {
+      await createFolderMutation.mutateAsync({ name });
+      setFolderDraft("");
+      await utils.chat.folders.invalidate();
+      toast.success("Conversation folder created");
+    } catch (error: any) {
+      toast.error(error.message || "Could not create folder");
+    }
+  };
+
+  const moveConversationToFolder = async (targetSessionId: string, folderId: number | null) => {
+    try {
+      await moveConversationMutation.mutateAsync({ sessionId: targetSessionId, folderId });
+      await utils.chat.conversations.invalidate();
+      toast.success(folderId ? "Conversation organized" : "Conversation moved to Inbox");
+    } catch (error: any) {
+      toast.error(error.message || "Could not organize conversation");
+    }
   };
 
   const openPrivateSecretDialog = () => {
@@ -319,6 +371,16 @@ export default function ChatPage() {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
+            <div className="mt-4 border-t border-border/50 pt-3">
+              <div className="mb-2 flex items-center justify-between px-2">
+                <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Conversations</span>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={startNewConversation} title="New conversation"><Plus className="h-3.5 w-3.5" /></Button>
+              </div>
+              <div className="relative mb-2 px-1"><Search className="pointer-events-none absolute left-3 top-2 h-3.5 w-3.5 text-muted-foreground" /><Input value={conversationSearch} onChange={event => setConversationSearch(event.target.value)} placeholder="Search conversations" className="h-8 pl-8 text-xs" /></div>
+              <div className="mb-2 flex gap-1 px-1"><Input value={folderDraft} onChange={event => setFolderDraft(event.target.value)} onKeyDown={event => { if (event.key === "Enter") void addFolder(); }} placeholder="New folder" className="h-8 text-xs" /><Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={addFolder} disabled={!folderDraft.trim() || createFolderMutation.isPending} title="Create folder"><FolderPlus className="h-3.5 w-3.5" /></Button></div>
+              <div className="mb-2 flex flex-wrap gap-1 px-1"><button onClick={() => setFolderFilter("all")} className={`rounded px-2 py-1 text-[10px] ${folderFilter === "all" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}>All</button><button onClick={() => setFolderFilter("unfiled")} className={`rounded px-2 py-1 text-[10px] ${folderFilter === "unfiled" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}>Inbox</button>{(foldersQuery.data?.folders || []).map(folder => <button key={folder.id} onClick={() => setFolderFilter(folder.id)} className={`max-w-24 truncate rounded px-2 py-1 text-[10px] ${folderFilter === folder.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}>{folder.name}</button>)}</div>
+              <ScrollArea className="max-h-52 px-1"><div className="space-y-1 pb-1">{visibleConversations.map(conversation => <div key={conversation.sessionId} className={`group flex items-center gap-1 rounded-md px-1 py-0.5 ${conversation.sessionId === sessionId ? "bg-accent" : "hover:bg-accent/60"}`}><button onClick={() => openConversation(conversation.sessionId)} className="min-w-0 flex flex-1 items-center gap-2 px-2 py-1.5 text-left"><History className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /><span className="truncate text-xs">{conversation.title}</span></button><select aria-label={`Move ${conversation.title} to a folder`} value={conversation.folderId || ""} onChange={event => void moveConversationToFolder(conversation.sessionId, parseConversationFolderValue(event.target.value))} disabled={moveConversationMutation.isPending} className="hidden h-6 max-w-20 rounded border border-border bg-background px-1 text-[10px] group-hover:block focus:block"><option value="">Inbox</option>{(foldersQuery.data?.folders || []).map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></div>)}{showConversationEmptyState && <p className="px-2 py-3 text-xs text-muted-foreground">Your saved conversations will appear here.</p>}</div></ScrollArea>
+            </div>
           </SidebarContent>
           <div className="p-3 border-t border-border/50">
             <div className="rounded-md px-3 py-2 text-xs text-muted-foreground">
