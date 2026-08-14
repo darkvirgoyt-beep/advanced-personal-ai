@@ -115,3 +115,10 @@
 - [x] Add a secure Neutron 3 Ultra preset using the existing per-workspace provider key controls
 - [x] Allow Neutron 3 Ultra selection in Settings and route chat through it
 - [x] Test the Neutron provider preset and selected-model routing
+
+## In-Chat Model Selector
+
+- [x] Show the active chat model and a visible selector in the chat composer
+- [x] Load active Groq and configured custom-provider model options in chat
+- [x] Save the chosen model for the current workspace before the next chat request
+- [x] Add regression coverage for direct in-chat model selection

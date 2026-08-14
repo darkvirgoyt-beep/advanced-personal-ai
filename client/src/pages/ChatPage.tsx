@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { nanoid } from "nanoid";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { buildChatModelOptions, DEFAULT_CHAT_MODEL, type ConfiguredChatModel } from "@/lib/chatModelOptions";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -75,12 +76,18 @@ export default function ChatPage() {
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedRepoFullNames, setSelectedRepoFullNames] = useState<string[]>([]);
+  const [activeModel, setActiveModel] = useState(DEFAULT_CHAT_MODEL);
 
   // All hooks before any early return
   const historyQuery = trpc.chat.history.useQuery({ sessionId }, { enabled: !loading });
   const clearMutation = trpc.chat.clear.useMutation();
   const sendMutation = trpc.chat.send.useMutation();
   const githubReposQuery = trpc.git.listGitHubRepos.useQuery(undefined, { enabled: !loading, staleTime: 5 * 60 * 1000 });
+  const settingsQuery = trpc.settings.get.useQuery(undefined, { enabled: !loading });
+  const updateSettingsMutation = trpc.settings.update.useMutation();
+  const customModelsQuery = trpc.models.list.useQuery(undefined, { enabled: !loading });
+  const groqCheckQuery = trpc.groq.check.useQuery(undefined, { enabled: !loading });
+  const utils = trpc.useUtils();
 
   useEffect(() => { localStorage.setItem("nova-session", sessionId); }, [sessionId]);
   useEffect(() => {
@@ -99,6 +106,9 @@ export default function ChatPage() {
     const available = new Set(githubReposQuery.data.repos.map(repo => repo.fullName));
     setSelectedRepoFullNames(current => current.filter(fullName => available.has(fullName)));
   }, [githubReposQuery.data]);
+  useEffect(() => {
+    if (settingsQuery.data?.model) setActiveModel(settingsQuery.data.model);
+  }, [settingsQuery.data?.model]);
 
   const scrollToBottom = useCallback(() => {
     const viewport = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement;
@@ -141,6 +151,24 @@ export default function ChatPage() {
 
   const availableRepositories = (githubReposQuery.data?.repos || []) as GitHubRepository[];
   const selectedRepositories = availableRepositories.filter(repo => selectedRepoFullNames.includes(repo.fullName));
+  const chatModelOptions = buildChatModelOptions({
+    hasGroqKey: groqCheckQuery.data?.has || false,
+    models: (customModelsQuery.data?.models || []) as ConfiguredChatModel[],
+    activeModel,
+  });
+
+  const changeActiveModel = async (nextModel: string) => {
+    const previousModel = activeModel;
+    setActiveModel(nextModel);
+    try {
+      await updateSettingsMutation.mutateAsync({ model: nextModel });
+      await utils.settings.get.invalidate();
+      toast.success("Chat model selected");
+    } catch (err: any) {
+      setActiveModel(previousModel);
+      toast.error(err.message || "Could not change the chat model");
+    }
+  };
 
   const handleSend = async () => {
     const trimmed = input.trim();
@@ -273,6 +301,34 @@ export default function ChatPage() {
 
           {/* Input */}
           <div className="border-t border-border/50 p-4">
+            <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+              <div className="min-w-0 flex items-center gap-2">
+                <Cpu className="h-4 w-4 shrink-0 text-primary" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium">Chat model</p>
+                  <p className="truncate text-[11px] text-muted-foreground">Choose the model Nova uses for your next message.</p>
+                </div>
+              </div>
+              <select
+                aria-label="Active chat model"
+                value={activeModel}
+                onChange={event => changeActiveModel(event.target.value)}
+                disabled={updateSettingsMutation.isPending || chatModelOptions.length === 0}
+                className="h-8 max-w-[15rem] rounded-md border border-input bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {chatModelOptions.filter(option => option.group === "groq").length > 0 && (
+                  <optgroup label="Groq">
+                    {chatModelOptions.filter(option => option.group === "groq").map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </optgroup>
+                )}
+                {chatModelOptions.filter(option => option.group === "configured").length > 0 && (
+                  <optgroup label="Configured providers">
+                    {chatModelOptions.filter(option => option.group === "configured").map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </optgroup>
+                )}
+                {chatModelOptions.filter(option => option.group === "unavailable").map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
             <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/50 px-3 py-2">
               <div className="min-w-0 flex items-center gap-2">
                 <Github className="h-4 w-4 shrink-0 text-muted-foreground" />
