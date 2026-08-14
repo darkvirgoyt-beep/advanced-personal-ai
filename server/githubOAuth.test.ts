@@ -75,8 +75,8 @@ describe("GitHub OAuth workspace isolation", () => {
     connections.clear();
     connections.set(101, { githubLogin: "alpha-user", scope: "repo" });
 
-    const alphaResponse = await api("/api/nova-github?action=status", alpha);
-    const betaResponse = await api("/api/nova-github?action=status", beta);
+    const alphaResponse = await api("/api/download/project-zip?github=1&action=status", alpha);
+    const betaResponse = await api("/api/download/project-zip?github=1&action=status", beta);
 
     expect(await alphaResponse.json()).toMatchObject({ connected: true, login: "alpha-user" });
     expect(await betaResponse.json()).toMatchObject({ connected: false, login: "" });
@@ -87,11 +87,11 @@ describe("GitHub OAuth workspace isolation", () => {
     connections.set(101, { githubLogin: "alpha-user", scope: "repo" });
     connections.set(202, { githubLogin: "beta-user", scope: "repo" });
 
-    const disconnectResponse = await api("/api/nova-github?action=disconnect", alpha, { method: "POST" });
+    const disconnectResponse = await api("/api/download/project-zip?github=1&action=disconnect", alpha, { method: "POST" });
     expect(await disconnectResponse.json()).toEqual({ success: true });
 
-    const alphaResponse = await api("/api/nova-github?action=status", alpha);
-    const betaResponse = await api("/api/nova-github?action=status", beta);
+    const alphaResponse = await api("/api/download/project-zip?github=1&action=status", alpha);
+    const betaResponse = await api("/api/download/project-zip?github=1&action=status", beta);
     expect(await alphaResponse.json()).toMatchObject({ connected: false, login: "" });
     expect(await betaResponse.json()).toMatchObject({ connected: true, login: "beta-user" });
   });
@@ -108,14 +108,14 @@ describe("GitHub OAuth workspace isolation", () => {
     vi.stubGlobal("fetch", githubFetch);
 
     try {
-      const callbackResponse = await api("/api/nova-github?code=real-code&state=pending-alpha", alpha);
+      const callbackResponse = await api("/api/download/project-zip?github=1&code=real-code&state=pending-alpha", alpha);
       expect(callbackResponse.status).toBe(302);
       expect(callbackResponse.headers.get("location")).toBe("/git?github_connected=true");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
 
-    const statusResponse = await api("/api/nova-github?action=status", alpha);
+    const statusResponse = await api("/api/download/project-zip?github=1&action=status", alpha);
     expect(await statusResponse.json()).toMatchObject({ connected: true, login: "alpha-user" });
   });
 });

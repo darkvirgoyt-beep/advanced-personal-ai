@@ -21,7 +21,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 const GOOGLE_STATE_COOKIE = "nova_google_oauth_state";
 const WORKSPACE_COOKIE = "nova_workspace";
 const GOOGLE_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/auth/google/callback";
-const GITHUB_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/nova-github";
+const GITHUB_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/download/project-zip?github=1";
 
 function readCookie(req: Request, name: string): string | undefined {
   return parseCookie(req.headers.cookie ?? "")[name];
@@ -206,6 +206,92 @@ export function registerCustomRoutes(app: Express) {
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Upload failed" });
+    }
+  });
+
+  const handleLiveGitHubOAuth = async (req: Request, res: Response) => {
+    const action = typeof req.query.action === "string" ? req.query.action : undefined;
+    const code = typeof req.query.code === "string" ? req.query.code : undefined;
+    const state = typeof req.query.state === "string" ? req.query.state : undefined;
+
+    if (action === "status") {
+      try {
+        const user = await resolveWorkspaceUser(req, res);
+        const connection = await db.getGitHubConnection(user.id);
+        return res.json({ connected: !!connection, login: connection?.githubLogin || "", scope: connection?.scope || "" });
+      } catch {
+        return res.json({ connected: false, login: "", scope: "" });
+      }
+    }
+
+    if (code || state) {
+      if (!code || !state) return res.redirect("/git?error=github_auth_failed");
+      const clientId = process.env.GITHUB_CLIENT_ID;
+      const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+      if (!clientId || !clientSecret) return res.redirect("/git?error=github_not_configured");
+      try {
+        const pendingAuthorization = await db.getGitHubAuthorizationState(state);
+        if (!pendingAuthorization || !pendingAuthorization.stateExpiry || pendingAuthorization.stateExpiry < Math.floor(Date.now() / 1000)) {
+          return res.redirect("/git?error=github_auth_expired");
+        }
+        const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+          method: "POST",
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: GITHUB_CALLBACK_URL }),
+        });
+        const tokenData = await tokenRes.json() as { access_token?: string; scope?: string };
+        const accessToken = tokenData.access_token;
+        if (!tokenRes.ok || !accessToken) return res.redirect("/git?error=github_auth_failed");
+        const userRes = await fetch("https://api.github.com/user", {
+          headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/vnd.github+json" },
+        });
+        const ghUser = await userRes.json() as { id?: number; login?: string };
+        if (!userRes.ok || !ghUser.id || !ghUser.login) return res.redirect("/git?error=github_profile_failed");
+        await db.saveGitHubConnection(state, String(ghUser.id), ghUser.login, accessToken, tokenData.scope || "");
+        return res.redirect("/git?github_connected=true");
+      } catch (error) {
+        console.error("[GitHub OAuth] Callback failed", error);
+        return res.redirect("/git?error=github_auth_failed");
+      }
+    }
+
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      return res.status(503).json({ error: "GitHub OAuth is not configured for this Nova AI deployment." });
+    }
+    try {
+      const user = await resolveWorkspaceUser(req, res);
+      const authorizationState = randomBytes(24).toString("base64url");
+      await db.createGitHubAuthorizationState(user.id, authorizationState, Math.floor(Date.now() / 1000) + 600);
+      const authorizeUrl = new URL("https://github.com/login/oauth/authorize");
+      authorizeUrl.searchParams.set("client_id", clientId);
+      authorizeUrl.searchParams.set("redirect_uri", GITHUB_CALLBACK_URL);
+      authorizeUrl.searchParams.set("state", authorizationState);
+      authorizeUrl.searchParams.set("scope", "repo read:user user:email");
+      return res.redirect(authorizeUrl.toString());
+    } catch (error) {
+      console.error("[GitHub OAuth] Unable to start authorization", error);
+      return res.status(500).json({ error: "Unable to start GitHub authorization. Please try again." });
+    }
+  };
+
+  app.get("/api/download/project-zip", (req, res, next) => {
+    if (req.query.github === "1") {
+      void handleLiveGitHubOAuth(req, res);
+      return;
+    }
+    next();
+  });
+
+  app.post("/api/download/project-zip", async (req, res) => {
+    if (req.query.github !== "1" || req.query.action !== "disconnect") return res.status(400).json({ success: false });
+    try {
+      const user = await resolveWorkspaceUser(req, res);
+      await db.clearGitHubConnection(user.id);
+      return res.json({ success: true });
+    } catch {
+      return res.json({ success: false });
     }
   });
 

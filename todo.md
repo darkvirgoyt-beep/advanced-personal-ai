@@ -88,4 +88,8 @@
 - [x] Move GitHub OAuth authorization and callback endpoints away from the conflicting deployment route
 - [ ] User: update the GitHub OAuth App redirect URI to the non-conflicting callback route
 - [x] Move GitHub OAuth to a deployment-routable two-segment API route
-- [ ] Verify the new two-segment authorization route reaches the production server instead of the app shell
+- [x] Verify the two-segment authorization route reaches the app shell in production and require an established-endpoint fallback
+- [x] Route GitHub OAuth actions through the verified live project-download endpoint using explicit action parameters
+- [ ] Verify the established endpoint returns a GitHub authorization redirect on the live site
+- [ ] Live-test anonymous workspace GitHub status and disconnect branches on the established endpoint
+- [ ] User: update the GitHub OAuth App redirect URI to the established endpoint callback URL and confirm callback success
