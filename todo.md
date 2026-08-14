@@ -34,3 +34,8 @@
 - [x] Prepare deployable GitHub bundle (README, Dockerfile, env example)
 - [x] Write tests for new features
 - [x] Checkpoint and deliver
+
+## Deployment
+
+- [x] Create GitHub repo "advanced-personal-ai" and push project files
+- [x] Save checkpoint and deliver with deployment URL
