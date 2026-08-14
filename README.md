@@ -10,10 +10,15 @@ Nova AI is a **full-stack, cyberpunk-styled personal AI workspace**. It uses Man
 |---|---|
 | Identity | Manus OAuth gates the `/chat` experience and scopes data access to the signed-in user. |
 | Conversation memory | `chat_conversations` and `chat_messages` persist user-owned conversation state. |
+| Turn lifecycle | The authenticated `/api/chat/stream` endpoint creates new conversations when needed, persists the user turn before generation, streams the response, and persists the assistant turn on completion. |
 | AI context | The latest retained user and assistant turns, prefixed with a configurable system prompt, are sent on each request. |
 | Streaming | OpenRouter/Nemotron and Hugging Face use server-side SSE streaming; the built-in provider is delivered progressively through the same interface. |
 | Provider routing | Configure a default provider with `NOVA_LLM_PROVIDER`; Nova AI falls back across securely configured providers when possible. |
 | Quality checks | `github-actions-ci.yml.template` runs type checking, unit tests, and production builds when copied to `.github/workflows/ci.yml`. |
+
+## Source-project adaptation
+
+The provided `advanced-personal-ai` repository informed the conversation-workspace and history-organizer behavior in this rebuild. Nova AI deliberately adapts those behaviors onto the Manus OAuth, tRPC/Express, and cyberpunk UI foundation rather than copying source code, user data, or credentials. See [SOURCE_INTEGRATION.md](./SOURCE_INTEGRATION.md) for the exact mapping.
 
 ## Local development
 

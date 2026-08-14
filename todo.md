@@ -1,17 +1,24 @@
 # Project TODO
 
-- [ ] Define a central project-level LLM configuration module with the configurable system prompt and default model selection.
-- [ ] Add database schema, migration, and scoped query helpers for conversations and ordered messages owned by the authenticated user.
-- [ ] Implement protected chat procedures that create conversations, persist each turn, and pass recent conversation messages as multi-turn LLM context.
-- [ ] Implement a secure streamed-completion endpoint that uses the server-side LLM proxy and saves the completed assistant response.
-- [ ] Add a protected full-screen chat route with a conversation history panel, mobile drawer behavior, message composer, streaming state, and Markdown rendering.
-- [ ] Build a hero landing page with animated AI headline, feature highlights, neon HUD framing, exact Start Chatting CTA, and Manus OAuth controls.
-- [ ] Build a top navigation bar with branded logo, navigation links, responsive menu, and Manus OAuth login/logout controls.
-- [ ] Apply a responsive cyberpunk visual system with black surfaces, neon pink and electric cyan glows, geometric typography, technical lines, and accessible contrast.
-- [ ] Add automated tests for configuration validation, conversation ownership, and chat-context construction.
-- [ ] Add GitHub-ready README and deployment instructions explaining the full-stack hosting requirements, required environment variables, database migration, and GitHub repository workflow.
-- [ ] Run type checking and automated tests, then verify landing and chat layouts at desktop and mobile viewport sizes.
-- [ ] Inspect and selectively integrate the existing AI logic, configuration, and project assets from darkvirgoyt-beep/advanced-personal-ai without exposing credentials or overwriting required Manus OAuth safeguards.
-- [ ] Configure the supplied Hugging Face token as a server-only fallback provider option without committing the credential or exposing it to the browser.
-- [ ] Configure the supplied Nemotron provider credential as a server-only high-capability fallback without committing the credential or exposing it to the browser.
-- [ ] Prepare a non-destructive GitHub branch containing the completed Nova AI application and its deployment documentation.
+- [x] Define a central project-level LLM configuration module with the configurable system prompt and default model selection.
+- [x] Add database schema, migration, and scoped query helpers for conversations and ordered messages owned by the authenticated user.
+- [x] Implement protected chat procedures that create conversations, persist each turn, and pass recent conversation messages as multi-turn LLM context.
+- [x] Implement a secure streamed-completion endpoint that uses the server-side LLM proxy and saves the completed assistant response.
+- [x] Add a protected full-screen chat route with a conversation history panel, mobile drawer behavior, message composer, streaming state, and Markdown rendering.
+- [x] Build a hero landing page with animated AI headline, feature highlights, neon HUD framing, exact Start Chatting CTA, and Manus OAuth controls.
+- [x] Build a top navigation bar with branded logo, navigation links, responsive menu, and Manus OAuth login/logout controls.
+- [x] Apply a responsive cyberpunk visual system with black surfaces, neon pink and electric cyan glows, geometric typography, technical lines, and accessible contrast.
+- [x] Add automated tests for configuration validation, conversation ownership, and chat-context construction.
+- [x] Add GitHub-ready README and deployment instructions explaining the full-stack hosting requirements, required environment variables, database migration, and GitHub repository workflow.
+- [x] Run type checking and automated tests, then verify landing and chat layouts at desktop and mobile viewport sizes.
+- [x] Inspect and selectively integrate the existing AI logic, configuration, and project assets from darkvirgoyt-beep/advanced-personal-ai without exposing credentials or overwriting required Manus OAuth safeguards.
+- [x] Configure the supplied Hugging Face token as a server-only fallback provider option without committing the credential or exposing it to the browser.
+- [x] Configure the supplied Nemotron provider credential as a server-only high-capability fallback without committing the credential or exposing it to the browser.
+- [x] Prepare a non-destructive GitHub branch containing the completed Nova AI application and its deployment documentation.
+- [x] Verify and document that the streamed chat endpoint, rather than tRPC, performs protected conversation creation and turn persistence.
+- [x] Document the concrete interaction patterns selectively retained from the supplied advanced-personal-ai repository.
+- [x] Verify the Hugging Face credential is present only to the server at runtime without surfacing the secret value.
+- [x] Verify the OpenRouter/Nemotron credential is present only to the server at runtime without surfacing the secret value.
+- [x] Record the authenticated streamed-endpoint persistence responsibility in the project documentation.
+- [x] Confirm the source-adaptation document is present in the project and linked from the README.
+- [x] Confirm client source and production output contain no Hugging Face or OpenRouter credential variable references or secret values.
