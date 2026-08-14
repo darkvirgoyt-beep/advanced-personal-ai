@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChatModelOptions } from "./chatModelOptions";
+import { buildChatModelOptions, getConfiguredProviderGuidance } from "./chatModelOptions";
 
 describe("buildChatModelOptions", () => {
   it("offers Groq and active keyed custom providers, including Neutron 3 Ultra", () => {
@@ -39,5 +39,15 @@ describe("buildChatModelOptions", () => {
       expect.objectContaining({ value: "custom:1", latency: "Low-latency / fast", price: "$0.09 in / $0.75 out per 1M", estimate: true }),
       expect.objectContaining({ value: "custom:2", latency: "Provider-dependent latency", price: "Price not published", estimate: false }),
     ]));
+  });
+
+  it("explains why a configured provider is hidden until it has a key and is active", () => {
+    expect(getConfiguredProviderGuidance([
+      { id: 1, name: "OpenRouter · NVIDIA Nemotron 3 Ultra", modelName: "nvidia/nemotron-3-ultra-550b-a55b", isActive: "true", hasApiKey: false },
+    ])).toContain("add its API key");
+
+    expect(getConfiguredProviderGuidance([
+      { id: 1, name: "OpenRouter · NVIDIA Nemotron 3 Ultra", modelName: "nvidia/nemotron-3-ultra-550b-a55b", isActive: "true", hasApiKey: true },
+    ])).toContain("appear in this selector");
   });
 });

@@ -45,6 +45,14 @@ export default function ModelsPage() {
   const [replacementKey, setReplacementKey] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  const startNemotronSetup = () => {
+    setName("OpenRouter · NVIDIA Nemotron 3 Ultra");
+    setProvider("openrouter");
+    setEndpoint("https://openrouter.ai/api/v1/chat/completions");
+    setModelName("nvidia/nemotron-3-ultra-550b-a55b");
+    setShowAdd(true);
+  };
+
   // All hooks before early return
   const modelsQuery = trpc.models.list.useQuery(undefined, { enabled: !!user });
   const saveMutation = trpc.models.add.useMutation();
@@ -56,7 +64,9 @@ export default function ModelsPage() {
   const openRouterPresetsQuery = trpc.models.openRouterChatPresets.useQuery(undefined, { enabled: !!user });
   const utils = trpc.useUtils();
 
-  useEffect(() => {}, []);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("setup") === "nemotron") startNemotronSetup();
+  }, []);
 
   if (loading || !isAuthenticated) return null;
 
@@ -215,7 +225,7 @@ export default function ModelsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium">OpenRouter chat models</p>
-                    <p className="mt-1 max-w-xl text-xs text-muted-foreground">Configure NVIDIA Nemotron 3 Ultra with an OpenRouter key, then select it in Settings. The key is saved only in your workspace and is never returned to the browser.</p>
+                    <p className="mt-1 max-w-xl text-xs text-muted-foreground">Add NVIDIA Nemotron 3 Ultra with your OpenRouter key. After saving, it is active by default and appears in the Chat model selector. The key is saved only in your workspace and is never returned to the browser.</p>
                   </div>
                   <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">Manage OpenRouter keys</a>
                 </div>
@@ -224,7 +234,7 @@ export default function ModelsPage() {
                     <div key={preset.id} className="rounded-lg border border-border/60 bg-background/70 p-3">
                       <p className="text-sm font-medium">{preset.name}</p>
                       <p className="mt-1 min-h-8 text-xs text-muted-foreground">{preset.description}</p>
-                      <Button variant="outline" size="sm" className="mt-3 h-8 text-xs" onClick={() => useOpenRouterPreset(preset)}>Configure</Button>
+                      <Button variant="outline" size="sm" className="mt-3 h-8 text-xs" onClick={() => useOpenRouterPreset(preset)}>Add Nemotron 3 Ultra</Button>
                     </div>
                   ))}
                 </div>
@@ -254,13 +264,14 @@ export default function ModelsPage() {
                     <Label>{provider === "kie-ai" ? "Kie AI API Key" : provider === "openrouter" ? "OpenRouter API Key" : "API Key (optional)"}</Label>
                     <div className="relative">
                       <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." className="pl-10" />
+                      <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder={provider === "openrouter" ? "sk-or-v1-..." : "sk-..."} className="pl-10" />
                     </div>
+                    {provider === "openrouter" && <p className="text-[11px] text-muted-foreground">Paste your OpenRouter API key, then save. Nova will activate this model automatically.</p>}
                   </div>
                   <div className="flex gap-2">
                     <Button onClick={handleSave} disabled={isSaving} size="sm">
                       {isSaving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
-                      Save Model
+                      Save & Activate Model
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
                   </div>
@@ -331,7 +342,7 @@ export default function ModelsPage() {
 
               <Card className="p-4 bg-accent/30 border-primary/20">
                 <p className="text-xs text-muted-foreground">
-                  <strong className="text-foreground">How it works:</strong> Add OpenAI-compatible chat endpoints, Kie AI presets, or OpenRouter presets here, then choose the active model in Settings. The API key is stored securely and used only by the server when sending requests to that provider.
+                  <strong className="text-foreground">How it works:</strong> Add OpenAI-compatible chat endpoints, Kie AI presets, or OpenRouter presets here. A provider appears in Chat only when it has an API key and its Active switch is on. New saved models are active by default; then choose them from the Chat model dropdown. The API key is stored securely and used only by the server when sending requests to that provider.
                 </p>
               </Card>
             </div>

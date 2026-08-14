@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { nanoid } from "nanoid";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { buildChatModelOptions, DEFAULT_CHAT_MODEL, type ConfiguredChatModel } from "@/lib/chatModelOptions";
+import { buildChatModelOptions, DEFAULT_CHAT_MODEL, getConfiguredProviderGuidance, type ConfiguredChatModel } from "@/lib/chatModelOptions";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -157,6 +157,8 @@ export default function ChatPage() {
     activeModel,
   });
   const activeModelOption = chatModelOptions.find(option => option.value === activeModel);
+  const configuredModels = (customModelsQuery.data?.models || []) as ConfiguredChatModel[];
+  const configuredProviderGuidance = getConfiguredProviderGuidance(configuredModels);
 
   const changeActiveModel = async (nextModel: string) => {
     const previousModel = activeModel;
@@ -309,9 +311,13 @@ export default function ChatPage() {
                   <p className="text-xs font-medium">Chat model</p>
                   <p className="truncate text-[11px] text-muted-foreground">Choose the model Nova uses for your next message.</p>
                   <p className="mt-0.5 text-[10px] text-muted-foreground">Rates are provider-published estimates per 1M input/output tokens; actual usage and latency can vary.</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">{configuredProviderGuidance}</p>
                 </div>
               </div>
-              <div className="min-w-0 flex-1 sm:flex-none">
+              <div className="min-w-0 flex flex-1 flex-col items-stretch gap-1 sm:flex-none sm:items-end">
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => navigate("/models?setup=nemotron")}>
+                  <Cpu className="mr-1.5 h-3.5 w-3.5" /> Add Nemotron or another model
+                </Button>
                 <select
                   aria-label="Active chat model"
                   value={activeModel}

@@ -129,3 +129,10 @@
 - [x] Add expected latency and input/output price indicators to selectable model options
 - [x] Present custom models with an honest unavailable-price state when no public rate is configured
 - [x] Add regression coverage for model comparison metadata
+
+## Custom Provider Visibility Repair
+
+- [x] Make the Models-page path to configure OpenRouter Nemotron 3 Ultra explicit and easy to find
+- [x] Explain why a provider is absent from chat until it has a saved API key and is enabled
+- [x] Surface a clear chat-selector path to add a missing configured provider
+- [x] Add regression coverage for configured-provider eligibility and guidance

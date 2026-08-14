@@ -25,6 +25,14 @@ export type ChatModelOption = {
   estimate: boolean;
 };
 
+export function getConfiguredProviderGuidance(models: ConfiguredChatModel[]): string {
+  const readyCount = models.filter(model => model.isActive === "true" && model.hasApiKey).length;
+  if (readyCount > 0) {
+    return "Configured providers with a saved API key and Active status appear in this selector.";
+  }
+  return "To show a custom provider here, add its API key in Models and keep its Active switch on.";
+}
+
 type ModelIndicator = Pick<ChatModelOption, "latency" | "price" | "priceDetail" | "estimate">;
 
 const PROVIDER_DEFAULT_INDICATOR: ModelIndicator = {
