@@ -149,7 +149,7 @@ export default function GitPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => { window.location.assign("/api/download/nova-ai-source.zip"); }}
+                onClick={() => { window.location.assign("/api/download/project-zip?download=1"); }}
               >
                 <Download className="w-4 h-4 mr-1" /> Download ZIP
               </Button>

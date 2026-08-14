@@ -46,3 +46,4 @@
 - [x] Add portable deployment instructions for GitHub-hosted source
 - [x] Generate and validate a complete Nova AI source-code ZIP
 - [x] Fix and verify the public direct-download URL for the source ZIP
+- [x] Point the in-app download button to the verified live project-zip endpoint
