@@ -14,8 +14,8 @@ describe("buildChatModelOptions", () => {
     });
 
     expect(options).toEqual(expect.arrayContaining([
-      expect.objectContaining({ value: "llama-3.3-70b-versatile", group: "groq" }),
-      expect.objectContaining({ value: "custom:8", label: "OpenRouter · NVIDIA Nemotron 3 Ultra · nvidia/nemotron-3-ultra-550b-a55b", group: "configured" }),
+      expect.objectContaining({ value: "llama-3.3-70b-versatile", group: "groq", latency: "Fast · 280 tokens/sec", price: "$0.59 in / $0.79 out per 1M" }),
+      expect.objectContaining({ value: "custom:8", group: "configured", latency: "Reasoning / variable", price: "$0.50 in / $2.20 out per 1M" }),
     ]));
     expect(options.some(option => option.value === "custom:9")).toBe(false);
     expect(options.some(option => option.value === "custom:10")).toBe(false);
@@ -23,6 +23,21 @@ describe("buildChatModelOptions", () => {
 
   it("retains an unavailable saved selection so the selector does not hide it", () => {
     const options = buildChatModelOptions({ hasGroqKey: false, models: [], activeModel: "custom:999" });
-    expect(options).toEqual([{ value: "custom:999", label: "Unavailable saved model", group: "unavailable" }]);
+    expect(options).toEqual([expect.objectContaining({ value: "custom:999", label: "Unavailable saved model · provider information unavailable", group: "unavailable", price: "Unavailable" })]);
+  });
+
+  it("shows Kie published estimates and protects custom providers with an honest unknown-cost state", () => {
+    const options = buildChatModelOptions({
+      hasGroqKey: false,
+      activeModel: "custom:2",
+      models: [
+        { id: 1, name: "Kie AI · Gemini 2.5 Flash", modelName: "gemini-2.5-flash", isActive: "true", hasApiKey: true },
+        { id: 2, name: "Private endpoint", modelName: "my-private-model", isActive: "true", hasApiKey: true },
+      ],
+    });
+    expect(options).toEqual(expect.arrayContaining([
+      expect.objectContaining({ value: "custom:1", latency: "Low-latency / fast", price: "$0.09 in / $0.75 out per 1M", estimate: true }),
+      expect.objectContaining({ value: "custom:2", latency: "Provider-dependent latency", price: "Price not published", estimate: false }),
+    ]));
   });
 });

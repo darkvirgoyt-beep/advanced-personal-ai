@@ -25,3 +25,13 @@ Sources:
 
 - https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b
 - https://openrouter.ai/docs/api/api-reference/chat/create-a-chat-completion
+
+## Model indicator metadata
+
+Sources checked on 2026-08-14 for in-chat selector indicators:
+
+- Groq’s supported-model table publishes **560 tokens/second** and **$0.05 input / $0.08 output per million tokens** for `llama-3.1-8b-instant`, plus **280 tokens/second** and **$0.59 input / $0.79 output per million tokens** for `llama-3.3-70b-versatile`: https://console.groq.com/docs/models
+- OpenRouter’s NVIDIA Nemotron 3 Ultra comparison listing publishes **$0.50 input / $2.20 output per million tokens** for `nvidia/nemotron-3-ultra-550b-a55b`: https://openrouter.ai/compare/nvidia/nemotron-3-ultra-550b-a55b/nvidia/nemotron-3-super-120b-a12b
+- Kie’s Gemini 2.5 Flash and Pro product listings describe Flash as its lower-latency option and Pro as its advanced reasoning option. The price labels are provider-published estimates and should always be presented as per-million-token input/output figures, not a quote or billing guarantee: https://kie.ai/gemini-2.5-flash and https://kie.ai/gemini-2.5-pro
+
+Implementation policy: Nova displays current published rate estimates only where known, clearly labels them as **estimate** or **provider-dependent**, and never invents a token price or latency number for user-defined models. Actual charges, queue time, and end-to-end response time remain provider- and request-dependent.

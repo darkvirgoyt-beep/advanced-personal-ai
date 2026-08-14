@@ -156,6 +156,7 @@ export default function ChatPage() {
     models: (customModelsQuery.data?.models || []) as ConfiguredChatModel[],
     activeModel,
   });
+  const activeModelOption = chatModelOptions.find(option => option.value === activeModel);
 
   const changeActiveModel = async (nextModel: string) => {
     const previousModel = activeModel;
@@ -307,27 +308,38 @@ export default function ChatPage() {
                 <div className="min-w-0">
                   <p className="text-xs font-medium">Chat model</p>
                   <p className="truncate text-[11px] text-muted-foreground">Choose the model Nova uses for your next message.</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">Rates are provider-published estimates per 1M input/output tokens; actual usage and latency can vary.</p>
                 </div>
               </div>
-              <select
-                aria-label="Active chat model"
-                value={activeModel}
-                onChange={event => changeActiveModel(event.target.value)}
-                disabled={updateSettingsMutation.isPending || chatModelOptions.length === 0}
-                className="h-8 max-w-[15rem] rounded-md border border-input bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {chatModelOptions.filter(option => option.group === "groq").length > 0 && (
-                  <optgroup label="Groq">
-                    {chatModelOptions.filter(option => option.group === "groq").map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </optgroup>
+              <div className="min-w-0 flex-1 sm:flex-none">
+                <select
+                  aria-label="Active chat model"
+                  value={activeModel}
+                  onChange={event => changeActiveModel(event.target.value)}
+                  disabled={updateSettingsMutation.isPending || chatModelOptions.length === 0}
+                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60 sm:w-[25rem]"
+                >
+                  {chatModelOptions.filter(option => option.group === "groq").length > 0 && (
+                    <optgroup label="Groq">
+                      {chatModelOptions.filter(option => option.group === "groq").map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </optgroup>
+                  )}
+                  {chatModelOptions.filter(option => option.group === "configured").length > 0 && (
+                    <optgroup label="Configured providers">
+                      {chatModelOptions.filter(option => option.group === "configured").map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </optgroup>
+                  )}
+                  {chatModelOptions.filter(option => option.group === "unavailable").map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+                {activeModelOption && (
+                  <div className="mt-1 flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground sm:max-w-[25rem]">
+                    <span>{activeModelOption.latency}</span>
+                    <span aria-hidden="true">•</span>
+                    <span title={activeModelOption.priceDetail}>{activeModelOption.price}</span>
+                    {activeModelOption.estimate && <span className="rounded bg-muted px-1 py-0.5">estimated</span>}
+                  </div>
                 )}
-                {chatModelOptions.filter(option => option.group === "configured").length > 0 && (
-                  <optgroup label="Configured providers">
-                    {chatModelOptions.filter(option => option.group === "configured").map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </optgroup>
-                )}
-                {chatModelOptions.filter(option => option.group === "unavailable").map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
+              </div>
             </div>
             <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/50 px-3 py-2">
               <div className="min-w-0 flex items-center gap-2">

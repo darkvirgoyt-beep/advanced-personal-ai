@@ -122,3 +122,10 @@
 - [x] Load active Groq and configured custom-provider model options in chat
 - [x] Save the chosen model for the current workspace before the next chat request
 - [x] Add regression coverage for direct in-chat model selection
+
+## Model Performance and Cost Indicators
+
+- [x] Verify provider-published pricing and communicate the estimate basis clearly
+- [x] Add expected latency and input/output price indicators to selectable model options
+- [x] Present custom models with an honest unavailable-price state when no public rate is configured
+- [x] Add regression coverage for model comparison metadata
