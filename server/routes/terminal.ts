@@ -73,7 +73,7 @@ export function registerCustomRoutes(app: Express) {
     }
   });
 
-  app.get("/api/download/project-zip", (_req, res) => {
+  app.get(["/api/download/project-zip", "/api/download/nova-ai-source.zip"], (_req, res) => {
     const archive = new ZipArchive({ zlib: { level: 9 } });
     const projectRoot = process.cwd();
     const sourceDirectories = ["client", "server", "shared", "drizzle"];
@@ -97,6 +97,7 @@ export function registerCustomRoutes(app: Express) {
 
     res.setHeader("Content-Disposition", "attachment; filename=nova-ai-source.zip");
     res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
 
     archive.on("warning", (error: Error) => {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {

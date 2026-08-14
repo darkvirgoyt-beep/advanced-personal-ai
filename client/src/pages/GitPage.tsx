@@ -82,11 +82,6 @@ export default function GitPage() {
     setPushing(false);
   };
 
-  const handleDownloadZip = () => {
-    window.open("/api/download/project-zip", "_blank");
-    toast.success("Downloading project ZIP...");
-  };
-
   return (
     <SidebarProvider>
       <div className="flex h-screen bg-background">
@@ -151,7 +146,11 @@ export default function GitPage() {
               >
                 <Github className="w-4 h-4 mr-1" /> Authorize GitHub
               </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadZip}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { window.location.assign("/api/download/nova-ai-source.zip"); }}
+              >
                 <Download className="w-4 h-4 mr-1" /> Download ZIP
               </Button>
               <Button variant="outline" size="sm" onClick={() => setShowForm(!showForm)}>
