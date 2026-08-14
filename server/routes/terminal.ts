@@ -21,7 +21,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 const GOOGLE_STATE_COOKIE = "nova_google_oauth_state";
 const WORKSPACE_COOKIE = "nova_workspace";
 const GOOGLE_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/auth/google/callback";
-const GITHUB_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/nova/github/callback";
+const GITHUB_CALLBACK_URL = "https://novaai-r2evuk7k.manus.space/api/nova-github";
 
 function readCookie(req: Request, name: string): string | undefined {
   return parseCookie(req.headers.cookie ?? "")[name];
@@ -266,8 +266,57 @@ export function registerCustomRoutes(app: Express) {
     res.json({ status: "ok" });
   });
 
-  // GitHub OAuth - start an authorization request owned by the current workspace.
-  app.get("/api/nova/github/authorize", async (req, res) => {
+  // GitHub OAuth uses a two-segment route because the production gateway only forwards that shape.
+  app.get("/api/nova-github", async (req, res) => {
+    const action = typeof req.query.action === "string" ? req.query.action : undefined;
+    const code = typeof req.query.code === "string" ? req.query.code : undefined;
+    const state = typeof req.query.state === "string" ? req.query.state : undefined;
+
+    if (action === "status") {
+      try {
+        const user = await resolveWorkspaceUser(req, res);
+        const connection = await db.getGitHubConnection(user.id);
+        return res.json({ connected: !!connection, login: connection?.githubLogin || "", scope: connection?.scope || "" });
+      } catch {
+        return res.json({ connected: false, login: "", scope: "" });
+      }
+    }
+
+    if (code || state) {
+      if (!code || !state) return res.redirect("/git?error=github_auth_failed");
+      const clientId = process.env.GITHUB_CLIENT_ID;
+      const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+      if (!clientId || !clientSecret) return res.redirect("/git?error=github_not_configured");
+
+      try {
+        const pendingAuthorization = await db.getGitHubAuthorizationState(state);
+        if (!pendingAuthorization || !pendingAuthorization.stateExpiry || pendingAuthorization.stateExpiry < Math.floor(Date.now() / 1000)) {
+          return res.redirect("/git?error=github_auth_expired");
+        }
+
+        const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+          method: "POST",
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: GITHUB_CALLBACK_URL }),
+        });
+        const tokenData = await tokenRes.json() as { access_token?: string; scope?: string };
+        const accessToken = tokenData.access_token;
+        if (!tokenRes.ok || !accessToken) return res.redirect("/git?error=github_auth_failed");
+
+        const userRes = await fetch("https://api.github.com/user", {
+          headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/vnd.github+json" },
+        });
+        const ghUser = await userRes.json() as { id?: number; login?: string };
+        if (!userRes.ok || !ghUser.id || !ghUser.login) return res.redirect("/git?error=github_profile_failed");
+
+        await db.saveGitHubConnection(state, String(ghUser.id), ghUser.login, accessToken, tokenData.scope || "");
+        return res.redirect("/git?github_connected=true");
+      } catch (error) {
+        console.error("[GitHub OAuth] Callback failed", error);
+        return res.redirect("/git?error=github_auth_failed");
+      }
+    }
+
     const clientId = process.env.GITHUB_CLIENT_ID;
     const clientSecret = process.env.GITHUB_CLIENT_SECRET;
     if (!clientId || !clientSecret) {
@@ -276,14 +325,14 @@ export function registerCustomRoutes(app: Express) {
 
     try {
       const user = await resolveWorkspaceUser(req, res);
-      const state = randomBytes(24).toString("base64url");
+      const authorizationState = randomBytes(24).toString("base64url");
       const expiry = Math.floor(Date.now() / 1000) + 600;
-      await db.createGitHubAuthorizationState(user.id, state, expiry);
+      await db.createGitHubAuthorizationState(user.id, authorizationState, expiry);
 
       const authorizeUrl = new URL("https://github.com/login/oauth/authorize");
       authorizeUrl.searchParams.set("client_id", clientId);
       authorizeUrl.searchParams.set("redirect_uri", GITHUB_CALLBACK_URL);
-      authorizeUrl.searchParams.set("state", state);
+      authorizeUrl.searchParams.set("state", authorizationState);
       authorizeUrl.searchParams.set("scope", "repo read:user user:email");
       return res.redirect(authorizeUrl.toString());
     } catch (error) {
@@ -292,63 +341,14 @@ export function registerCustomRoutes(app: Express) {
     }
   });
 
-  // GitHub OAuth - validate the state, exchange the real code, and link only its originating workspace.
-  app.get("/api/nova/github/callback", async (req, res) => {
-    const code = typeof req.query.code === "string" ? req.query.code : undefined;
-    const state = typeof req.query.state === "string" ? req.query.state : undefined;
-    if (!code || !state) return res.redirect("/git?error=github_auth_failed");
-
-    const clientId = process.env.GITHUB_CLIENT_ID;
-    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
-    if (!clientId || !clientSecret) return res.redirect("/git?error=github_not_configured");
-
-    try {
-      const pendingAuthorization = await db.getGitHubAuthorizationState(state);
-      if (!pendingAuthorization || !pendingAuthorization.stateExpiry || pendingAuthorization.stateExpiry < Math.floor(Date.now() / 1000)) {
-        return res.redirect("/git?error=github_auth_expired");
-      }
-
-      const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
-        method: "POST",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: GITHUB_CALLBACK_URL }),
-      });
-      const tokenData = await tokenRes.json() as { access_token?: string; scope?: string };
-      const accessToken = tokenData.access_token;
-      if (!tokenRes.ok || !accessToken) return res.redirect("/git?error=github_auth_failed");
-
-      const userRes = await fetch("https://api.github.com/user", {
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/vnd.github+json" },
-      });
-      const ghUser = await userRes.json() as { id?: number; login?: string };
-      if (!userRes.ok || !ghUser.id || !ghUser.login) return res.redirect("/git?error=github_profile_failed");
-
-      await db.saveGitHubConnection(state, String(ghUser.id), ghUser.login, accessToken, tokenData.scope || "");
-      res.redirect("/git?github_connected=true");
-    } catch (error) {
-      console.error("[GitHub OAuth] Callback failed", error);
-      res.redirect("/git?error=github_auth_failed");
-    }
-  });
-
-  // GitHub OAuth - status and disconnect actions are scoped to the current workspace.
-  app.get("/api/nova/github/status", async (req, res) => {
-    try {
-      const user = await resolveWorkspaceUser(req, res);
-      const connection = await db.getGitHubConnection(user.id);
-      res.json({ connected: !!connection, login: connection?.githubLogin || "", scope: connection?.scope || "" });
-    } catch {
-      res.json({ connected: false });
-    }
-  });
-
-  app.post("/api/nova/github/disconnect", async (req, res) => {
+  app.post("/api/nova-github", async (req, res) => {
+    if (req.query.action !== "disconnect") return res.status(400).json({ success: false });
     try {
       const user = await resolveWorkspaceUser(req, res);
       await db.clearGitHubConnection(user.id);
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch {
-      res.json({ success: false });
+      return res.json({ success: false });
     }
   });
 }

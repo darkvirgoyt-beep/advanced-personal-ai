@@ -87,3 +87,5 @@
 - [x] Add executable interface coverage that maps callback-linked GitHub status to the connected-account display
 - [x] Move GitHub OAuth authorization and callback endpoints away from the conflicting deployment route
 - [ ] User: update the GitHub OAuth App redirect URI to the non-conflicting callback route
+- [x] Move GitHub OAuth to a deployment-routable two-segment API route
+- [ ] Verify the new two-segment authorization route reaches the production server instead of the app shell
