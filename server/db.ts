@@ -7,6 +7,7 @@ import {
   chatFolders, chatConversations
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { randomUUID } from "crypto";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -202,6 +203,20 @@ export async function clearChatHistory(userId: number, sessionId: string): Promi
   if (!db) throw new Error("DB unavailable");
   await db.delete(chatMessages)
     .where(and(eq(chatMessages.userId, userId), eq(chatMessages.sessionId, sessionId)));
+}
+
+export type PortableChatMessage = { role: "user" | "assistant" | "system"; content: string };
+
+export async function importChatConversation(userId: number, title: string | undefined, messages: PortableChatMessage[]): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const sessionId = `import_${randomUUID()}`;
+  const safeTitle = title?.replace(/\s+/g, " ").trim().slice(0, 160) || conversationTitleFromMessage(messages[0]?.content || "Imported conversation");
+  await db.transaction(async tx => {
+    await tx.insert(chatConversations).values({ userId, sessionId, title: safeTitle });
+    await tx.insert(chatMessages).values(messages.map(message => ({ userId, sessionId, role: message.role, content: message.content })));
+  });
+  return sessionId;
 }
 
 export async function deleteChatConversation(userId: number, sessionId: string): Promise<void> {

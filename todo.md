@@ -188,12 +188,28 @@
 - [x] Add explicit AI operating modes for fast, reasoning, coding, creative, learning, gaming, research, and productivity workflows
 - [x] Add user-controlled memory settings through the chat operating controls
 - [x] Add conversation search and organized conversation folders
+- [x] Replace the chat route's blank authentication-loading state with an accessible NovaAI loading shell
 - [x] Search conversation history content in addition to generated titles
 - [x] Derive conversation metadata for existing saved chat sessions so prior chats appear in the organizer
 - [x] Re-verify search, existing conversations, empty state, and folder assignment behavior
 - [x] Refresh the conversation organizer after send, clear, and new-chat actions
 - [x] Add behavioral coverage for empty state, legacy visibility, and folder assignment UI data flow
-- [ ] Extend file and creator workflows with image understanding, image-generation entry points, and voice-ready controls
-- [ ] Create developer-facing API documentation, playground foundations, assistant concepts, and workflow-builder entry points
-- [ ] Add export/import conversation foundations and clearer privacy/security controls
+- [x] Extend file and creator workflows with image understanding, image-generation entry points, and voice-ready controls
+- [x] Add a workspace-scoped image-generation procedure and creator dialog without exposing service credentials
+- [x] Add microphone capture and audio transcription into the chat composer with upload limits
+- [x] Add a browser-native read-aloud control for assistant responses
+- [x] Surface research-mode guidance and references expectations in the chat interface
+- [x] Add regression coverage for creator request validation and chat interaction utilities
+- [x] Implement a dedicated image-understanding flow for uploaded images and present its analysis in chat
+- [x] Extract and test creator, microphone, and read-aloud interaction utilities for success and unsupported-browser paths
+- [x] Create developer-facing API documentation, playground foundations, assistant concepts, and workflow-builder entry points
+- [x] Add export/import conversation foundations and clearer privacy/security controls
+- [x] Add workspace-scoped JSON export and validated import procedures for a single conversation
+- [x] Add conversation export/import actions in chat with clear overwrite and privacy messaging
+- [x] Add a Settings privacy tab explaining storage boundaries, memory controls, vault isolation, and provider-key handling
+- [x] Add regression coverage for portable conversation validation and workspace isolation
+- [x] Add chat-side import messaging that confirms import creates a new private conversation and never overwrites the current chat
+- [x] Add a compact privacy note beside chat export/import actions explaining that only text messages are exported
 - [ ] Verify responsive behavior, core regression coverage, and publish the NovaAI ecosystem update
+- [ ] Produce a complete final production build or document a verified equivalent release artifact if sandbox limits block it
+- [ ] Save a restorable final NovaAI ecosystem checkpoint and re-verify the published release state

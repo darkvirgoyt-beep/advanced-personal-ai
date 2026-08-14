@@ -14,6 +14,7 @@ import SettingsPage from "./pages/SettingsPage";
 import ModelsPage from "./pages/ModelsPage";
 import ToolsPage from "./pages/ToolsPage";
 import WorkspacePage from "./pages/WorkspacePage";
+import ApiDocsPage from "./pages/ApiDocsPage";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
       <Route path={"/models"} component={ModelsPage} />
       <Route path={"/tools"} component={ToolsPage} />
       <Route path={"/workspace"} component={WorkspacePage} />
+      <Route path={"/api-docs"} component={ApiDocsPage} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

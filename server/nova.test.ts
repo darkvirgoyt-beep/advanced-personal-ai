@@ -10,6 +10,7 @@ vi.mock("./db", () => ({
   getChatHistory: vi.fn(),
   saveChatMessage: vi.fn(),
   clearChatHistory: vi.fn(),
+  importChatConversation: vi.fn(),
   deleteChatConversation: vi.fn(),
   ensureChatConversation: vi.fn(),
   listChatConversations: vi.fn(),
@@ -52,8 +53,15 @@ vi.mock("./storage", () => ({
   storageReadText: vi.fn(),
 }));
 
+vi.mock("./_core/imageGeneration", () => ({ generateImage: vi.fn() }));
+vi.mock("./_core/voiceTranscription", () => ({ transcribeAudio: vi.fn() }));
+vi.mock("./_core/llm", () => ({ invokeLLM: vi.fn() }));
+
 import * as db from "./db";
 import * as storage from "./storage";
+import * as imageGeneration from "./_core/imageGeneration";
+import * as voiceTranscription from "./_core/voiceTranscription";
+import * as llm from "./_core/llm";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -141,6 +149,29 @@ describe("groq key management", () => {
   });
 });
 
+describe("creator services", () => {
+  it("generates an image server-side without exposing integration credentials", async () => {
+    vi.mocked(imageGeneration.generateImage).mockResolvedValue({ url: "https://storage.example/generated/nova.png" });
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.creator.generateImage({ prompt: "A violet NovaAI dashboard with orbiting stars", quality: "medium" })).resolves.toEqual({ url: "https://storage.example/generated/nova.png" });
+    expect(imageGeneration.generateImage).toHaveBeenCalledWith({ prompt: "A violet NovaAI dashboard with orbiting stars", quality: "medium" });
+  });
+
+  it("transcribes a public HTTPS upload and rejects unsafe internal URLs", async () => {
+    vi.mocked(voiceTranscription.transcribeAudio).mockResolvedValue({ task: "transcribe", language: "en", duration: 1.2, text: "Draft a release plan", segments: [] });
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.voice.transcribe({ audioUrl: "https://storage.example/audio.webm", language: "en" })).resolves.toMatchObject({ text: "Draft a release plan", language: "en" });
+    await expect(caller.voice.transcribe({ audioUrl: "http://127.0.0.1/private.webm" })).rejects.toThrow("Use an HTTPS audio file uploaded through NovaAI");
+  });
+
+  it("analyzes a safe uploaded image with the server-side vision model", async () => {
+    vi.mocked(llm.invokeLLM).mockResolvedValue({ choices: [{ message: { role: "assistant", content: "The screenshot shows a settings panel." } }] } as any);
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.creator.analyzeImage({ imageUrl: "https://storage.example/screen.png" })).resolves.toEqual({ analysis: "The screenshot shows a settings panel." });
+    expect(llm.invokeLLM).toHaveBeenCalledWith(expect.objectContaining({ messages: expect.arrayContaining([expect.objectContaining({ role: "user" })]) }));
+  });
+});
+
 describe("chat operations", () => {
   it("returns chat history", async () => {
     vi.mocked(db.getChatHistory).mockResolvedValue([
@@ -159,6 +190,30 @@ describe("chat operations", () => {
     const result = await caller.chat.clear({ sessionId: "test-session" });
     expect(result).toEqual({ success: true });
     expect(db.deleteChatConversation).toHaveBeenCalledWith(1, "test-session");
+  });
+
+  it("exports only the selected workspace conversation in a portable JSON shape", async () => {
+    vi.mocked(db.getChatHistory).mockResolvedValue([{ id: 3, role: "user", content: "Keep this private" }] as any);
+    vi.mocked(db.listChatConversations).mockResolvedValue([{ sessionId: "private-chat", title: "Private plan", folderId: null, updatedAt: new Date() }] as any);
+    const caller = appRouter.createCaller(createCtx(anonymousWorkspaceUser));
+    await expect(caller.chat.exportConversation({ sessionId: "private-chat" })).resolves.toMatchObject({
+      format: "novaai-conversation/v1",
+      title: "Private plan",
+      messages: [{ role: "user", content: "Keep this private" }],
+    });
+    expect(db.getChatHistory).toHaveBeenCalledWith(42, "private-chat", 300);
+  });
+
+  it("imports a validated conversation into a new current-workspace session", async () => {
+    vi.mocked(db.importChatConversation).mockResolvedValue("imported-session");
+    const caller = appRouter.createCaller(createCtx(testUser));
+    await expect(caller.chat.importConversation({
+      format: "novaai-conversation/v1",
+      title: "Imported plan",
+      messages: [{ role: "user", content: "Summarize this plan" }, { role: "assistant", content: "Here is the summary" }],
+    })).resolves.toEqual({ sessionId: "imported-session" });
+    expect(db.importChatConversation).toHaveBeenCalledWith(1, "Imported plan", expect.any(Array));
+    await expect(caller.chat.importConversation({ format: "novaai-conversation/v1", messages: [] })).rejects.toThrow();
   });
 
   it("searches only the current workspace's conversation titles", async () => {

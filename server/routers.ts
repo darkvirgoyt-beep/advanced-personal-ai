@@ -10,6 +10,9 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { storagePut, storageReadText } from "./storage";
+import { generateImage } from "./_core/imageGeneration";
+import { transcribeAudio } from "./_core/voiceTranscription";
+import { invokeLLM } from "./_core/llm";
 
 const execAsync = promisify(execCallback);
 
@@ -53,6 +56,14 @@ const AI_MODE_INSTRUCTIONS: Record<string, string> = {
 };
 
 const aiModeSchema = z.enum(["fast", "reasoning", "coding", "creative", "learning", "gaming", "research", "productivity"]);
+const portableConversationSchema = z.object({
+  format: z.literal("novaai-conversation/v1"),
+  title: z.string().trim().min(1).max(160).optional(),
+  messages: z.array(z.object({
+    role: z.enum(["user", "assistant", "system"]),
+    content: z.string().min(1).max(32_000),
+  })).min(1).max(300),
+});
 
 const KIE_CHAT_PRESETS = [
   {
@@ -96,6 +107,19 @@ function normalizedProjectPath(filePath: string): string {
 
 function projectSourceStorageKey(userId: number, projectId: number, filePath: string): string {
   return `dev-projects/${userId}/${projectId}/${Buffer.from(filePath, "utf8").toString("base64url")}.txt`;
+}
+
+function isSafeVoiceUploadUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return false;
+    const host = url.hostname.toLowerCase();
+    if (host === "localhost" || host === "::1" || host.endsWith(".local")) return false;
+    if (/^(127\.|0\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host)) return false;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function projectRunCommandIsBlocked(command: string): boolean {
@@ -325,6 +349,50 @@ export const appRouter = router({
     }),
   }),
 
+  // ── Creator services ──
+  creator: router({
+    generateImage: protectedProcedure
+      .input(z.object({ prompt: z.string().trim().min(4).max(1000), quality: z.enum(["medium", "high"]).optional() }))
+      .mutation(async ({ input }) => {
+        const result = await generateImage({ prompt: input.prompt, quality: input.quality });
+        if (!result.url) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Image generation completed without an image URL." });
+        return { url: result.url };
+      }),
+    analyzeImage: protectedProcedure
+      .input(z.object({ imageUrl: z.string().url().max(2048), question: z.string().trim().max(600).optional() }))
+      .mutation(async ({ input }) => {
+        if (!isSafeVoiceUploadUrl(input.imageUrl)) throw new TRPCError({ code: "BAD_REQUEST", message: "Use an HTTPS image uploaded through NovaAI." });
+        const response = await invokeLLM({
+          maxTokens: 700,
+          messages: [
+            { role: "system", content: "You are NovaAI Vision. Analyze the supplied image carefully. State only what is visibly supported, call out uncertainty, and do not infer sensitive personal data." },
+            { role: "user", content: [
+              { type: "text", text: input.question || "Describe the image, visible text, interface layout, and any actionable observations." },
+              { type: "image_url", image_url: { url: input.imageUrl, detail: "high" } },
+            ] },
+          ],
+        });
+        const content = response.choices[0]?.message.content;
+        const analysis = typeof content === "string"
+          ? content
+          : content?.filter(part => part.type === "text").map(part => part.text).join("\n");
+        if (!analysis) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Image analysis completed without a response." });
+        return { analysis };
+      }),
+  }),
+
+  // ── Voice transcription ──
+  voice: router({
+    transcribe: protectedProcedure
+      .input(z.object({ audioUrl: z.string().url().max(2048), language: z.string().trim().min(2).max(12).optional() }))
+      .mutation(async ({ input }) => {
+        if (!isSafeVoiceUploadUrl(input.audioUrl)) throw new TRPCError({ code: "BAD_REQUEST", message: "Use an HTTPS audio file uploaded through NovaAI." });
+        const result = await transcribeAudio({ audioUrl: input.audioUrl, language: input.language, prompt: "Transcribe the user's voice for a NovaAI chat request." });
+        if ("error" in result) throw new TRPCError({ code: "BAD_REQUEST", message: result.error, cause: result });
+        return { text: result.text, language: result.language, duration: result.duration };
+      }),
+  }),
+
   // ── Chat ──
   chat: router({
     send: protectedProcedure
@@ -451,6 +519,27 @@ export const appRouter = router({
         await db.clearChatHistory(ctx.user!.id, input.sessionId);
         await db.deleteChatConversation(ctx.user!.id, input.sessionId);
         return { success: true };
+      }),
+    exportConversation: protectedProcedure
+      .input(z.object({ sessionId: z.string().min(1).max(128) }))
+      .query(async ({ ctx, input }) => {
+        const userId = ctx.user!.id;
+        const messages = await db.getChatHistory(userId, input.sessionId, 300);
+        if (!messages.length) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found in this workspace." });
+        const conversations = await db.listChatConversations(userId);
+        const conversation = conversations.find(item => item.sessionId === input.sessionId);
+        return {
+          format: "novaai-conversation/v1" as const,
+          exportedAt: new Date().toISOString(),
+          title: conversation?.title || "NovaAI conversation",
+          messages: messages.map(message => ({ role: message.role as "user" | "assistant" | "system", content: message.content })),
+        };
+      }),
+    importConversation: protectedProcedure
+      .input(portableConversationSchema)
+      .mutation(async ({ ctx, input }) => {
+        const sessionId = await db.importChatConversation(ctx.user!.id, input.title, input.messages);
+        return { sessionId };
       }),
     conversations: protectedProcedure
       .input(z.object({ search: z.string().max(160).optional() }).optional())

@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   MessageSquare, Shield, Terminal, BarChart3, GitBranch, Settings, LogOut,
-  User, Save, Loader2, Trash2, Plus, KeyRound,
+  User, Save, Loader2, Trash2, Plus, KeyRound, ShieldCheck, LockKeyhole, BrainCircuit,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
@@ -44,6 +45,7 @@ export default function SettingsPage() {
   const [, navigate] = useLocation();
   const [model, setModel] = useState("llama-3.3-70b-versatile");
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [vaultName, setVaultName] = useState("");
   const [vaultValue, setVaultValue] = useState("");
@@ -64,6 +66,7 @@ export default function SettingsPage() {
     if (settingsQuery.data) {
       if (settingsQuery.data.model) setModel(settingsQuery.data.model);
       if (settingsQuery.data.systemPrompt) setSystemPrompt(settingsQuery.data.systemPrompt);
+      if (typeof settingsQuery.data.memoryEnabled === "boolean") setMemoryEnabled(settingsQuery.data.memoryEnabled);
     }
   }, [settingsQuery.data]);
 
@@ -72,7 +75,7 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
-      await updateSettingsMutation.mutateAsync({ model, systemPrompt });
+      await updateSettingsMutation.mutateAsync({ model, systemPrompt, memoryEnabled });
       toast.success("Settings saved");
     } catch { toast.error("Failed to save"); }
     setIsSaving(false);
@@ -172,6 +175,7 @@ export default function SettingsPage() {
                   <TabsTrigger value="model">Model</TabsTrigger>
                   <TabsTrigger value="apikey">API Key</TabsTrigger>
                   <TabsTrigger value="vault">Vault</TabsTrigger>
+                  <TabsTrigger value="privacy">Privacy</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="model" className="space-y-4">
@@ -270,6 +274,15 @@ export default function SettingsPage() {
                     )}
                     <p className="text-xs text-muted-foreground">Secrets are injected into the AI context only. Never visible in chat.</p>
                   </Card>
+                </TabsContent>
+
+                <TabsContent value="privacy" className="space-y-4">
+                  <Card className="p-5 space-y-5">
+                    <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-primary" /><div><h3 className="text-sm font-medium">Private workspace controls</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">These controls apply to your current NovaAI workspace. They do not move provider keys, vault values, or chat data into the public chat interface.</p></div></div>
+                    <div className="flex items-center justify-between rounded-xl border border-border/70 bg-secondary/30 p-4"><div className="pr-4"><div className="flex items-center gap-2 text-sm font-medium"><BrainCircuit className="h-4 w-4 text-primary" /> Use saved chat memory</div><p className="mt-1 text-xs leading-5 text-muted-foreground">When enabled, Nova may include recent messages from the open conversation for continuity. When disabled, new replies use only your latest message and selected context.</p></div><Switch checked={memoryEnabled} onCheckedChange={setMemoryEnabled} aria-label="Use saved chat memory" /></div>
+                    <Button onClick={handleSaveSettings} disabled={isSaving} size="sm">{isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Save privacy settings</Button>
+                  </Card>
+                  <Card className="p-5"><div className="flex gap-3"><LockKeyhole className="mt-0.5 h-5 w-5 text-emerald-500" /><div><h3 className="text-sm font-medium">What stays private</h3><ul className="mt-2 space-y-2 text-xs leading-5 text-muted-foreground"><li>Vault values are stored separately and are never rendered into chat history or exports.</li><li>Provider API keys are saved server-side and never returned in settings, model, or documentation responses.</li><li>Conversation exports contain only the selected conversation’s text messages; they exclude vault entries, provider credentials, file bytes, GitHub tokens, and other workspace records.</li><li>Chat, folders, GitHub context, and exports remain scoped to this browser workspace or signed-in account.</li></ul></div></div></Card>
                 </TabsContent>
               </Tabs>
             </div>
